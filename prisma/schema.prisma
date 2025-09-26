@@ -1,0 +1,115 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Document {
+  id             Int               @id @default(autoincrement())
+  filename       String
+  original_path  String
+  file_type      String
+  mime_type      String
+  file_size      BigInt?
+  channel        String
+  department     String?
+  extracted_text String?
+  meta_data      String?
+  tags           String[]          @default([])
+  uploaded_by    String?
+  uploaded_at    DateTime          @default(now())
+  processed_at   DateTime?
+  status         String?
+  error_message  String?
+  thumbnail_path String?
+  download_count Int               @default(0)
+  is_favorite    Boolean           @default(false)
+  folder_id      Int?
+  shares         DocumentShare[]
+  versions       DocumentVersion[]
+  folder         Folder?           @relation(fields: [folder_id], references: [id])
+
+  @@map("documents")
+}
+
+model Folder {
+  id         Int        @id @default(autoincrement())
+  name       String
+  parent_id  Int?
+  created_by String?
+  created_at DateTime   @default(now())
+  updated_at DateTime   @updatedAt
+  color      String?
+  documents  Document[]
+  parent     Folder?    @relation("FolderHierarchy", fields: [parent_id], references: [id])
+  children   Folder[]   @relation("FolderHierarchy")
+
+  @@map("folders")
+}
+
+model DocumentVersion {
+  id             Int      @id @default(autoincrement())
+  document_id    Int
+  version_number Int
+  file_path      String
+  file_size      BigInt
+  uploaded_by    String?
+  uploaded_at    DateTime @default(now())
+  change_notes   String?
+  document       Document @relation(fields: [document_id], references: [id], onDelete: Cascade)
+
+  @@unique([document_id, version_number])
+  @@map("document_versions")
+}
+
+model DocumentShare {
+  id          Int       @id @default(autoincrement())
+  document_id Int
+  shared_with String
+  shared_by   String
+  permissions String
+  expires_at  DateTime?
+  created_at  DateTime  @default(now())
+  document    Document  @relation(fields: [document_id], references: [id], onDelete: Cascade)
+
+  @@map("document_shares")
+}
+
+model ProcessingQueue {
+  id           Int       @id @default(autoincrement())
+  document_id  Int
+  task_type    String
+  priority     Int?
+  status       String?
+  created_at   DateTime? @default(now())
+  processed_at DateTime?
+
+  @@map("processing_queue")
+}
+
+model EmailIntegration {
+  id            Int       @id @default(autoincrement())
+  email_address String    @unique
+  provider      String
+  is_active     Boolean   @default(true)
+  last_sync     DateTime?
+  settings      String?
+  created_at    DateTime  @default(now())
+
+  @@map("email_integrations")
+}
+
+model WhatsAppIntegration {
+  id           Int       @id @default(autoincrement())
+  phone_number String    @unique
+  webhook_url  String?
+  is_active    Boolean   @default(true)
+  last_sync    DateTime?
+  settings     String?
+  created_at   DateTime  @default(now())
+
+  @@map("whatsapp_integrations")
+}
