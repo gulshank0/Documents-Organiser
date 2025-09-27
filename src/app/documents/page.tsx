@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { Navigation } from '@/components/ui/Navigation';
+import { DocumentPreviewModal } from '@/components/ui/DocumentPreviewModal';
 import { Document, DEPARTMENTS } from '@/types';
-import { formatDate, getStatusColor, getDepartmentColor, getFileTypeIcon } from '@/lib/utils';
+import { getStatusColor, getDepartmentColor, getFileTypeIcon } from '@/lib/utils';
 import {
   MagnifyingGlassIcon,
   FunnelIcon,
@@ -16,7 +17,7 @@ import {
 
 export default function DocumentsPage() {
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,6 +29,10 @@ export default function DocumentsPage() {
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  
+  // Preview modal state
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
 
   // Check authentication status
   useEffect(() => {
@@ -42,7 +47,7 @@ export default function DocumentsPage() {
     if (status === 'authenticated') {
       fetchDocuments();
     }
-  }, [status, currentPage, filters, retryCount]);
+  }, [status, currentPage, filters, retryCount, router]);
 
   const fetchDocuments = async () => {
     setLoading(true);
@@ -51,10 +56,11 @@ export default function DocumentsPage() {
     try {
       const params = new URLSearchParams({
         skip: ((currentPage - 1) * 20).toString(),
-        limit: '20',
-        ...(filters.department && { department: filters.department }),
-        ...(filters.status && { status: filters.status })
+        limit: '20'
       });
+
+      if (filters.department) params.append('department', filters.department);
+      if (filters.status) params.append('status', filters.status);
 
       console.log('Fetching documents with params:', params.toString());
       
@@ -70,15 +76,12 @@ export default function DocumentsPage() {
       
       clearTimeout(timeoutId);
       
-      console.log('Documents API response status:', response.status);
-      
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
       
       const apiResponse = await response.json();
-      console.log('Documents API response data:', apiResponse);
       
       // Check if the API response has the expected structure
       if (apiResponse.success && Array.isArray(apiResponse.data)) {
@@ -91,61 +94,64 @@ export default function DocumentsPage() {
           );
         }
         
-        console.log('Setting documents:', filteredDocs.length, 'documents found');
         setDocuments(filteredDocs);
         setTotalPages(Math.ceil(filteredDocs.length / 20));
         setRetryCount(0); // Reset retry count on success
       } else {
-        // Handle API error response or unexpected structure
-        console.error('API returned unexpected structure:', apiResponse);
-        const errorMessage = apiResponse.error || 'Failed to load documents';
-        
-        if (errorMessage.includes('Database connection')) {
-          setError('Database connection issue. Retrying...');
-          // Auto-retry for database connection issues
-          if (retryCount < 3) {
-            setTimeout(() => {
-              setRetryCount(prev => prev + 1);
-            }, 2000 * (retryCount + 1)); // Exponential backoff
-          } else {
-            setError('Unable to connect to the database. Please check your connection and try again.');
-          }
-        } else {
-          setError(errorMessage);
-        }
-        
-        setDocuments([]);
-        setTotalPages(1);
+        handleApiError(apiResponse);
       }
       
     } catch (error) {
-      console.error('Error fetching documents:', error);
-      
-      if (error instanceof Error) {
-        if (error.name === 'AbortError') {
-          setError('Request timed out. Please check your connection and try again.');
-        } else if (error.message.includes('fetch')) {
-          setError('Network error. Please check your internet connection and try again.');
-        } else if (error.message.includes('Database connection')) {
-          setError('Database connection issue. The system is attempting to reconnect...');
-          // Auto-retry for database connection issues
-          if (retryCount < 3) {
-            setTimeout(() => {
-              setRetryCount(prev => prev + 1);
-            }, 2000 * (retryCount + 1));
-          }
-        } else {
-          setError(error.message);
-        }
-      } else {
-        setError('An unexpected error occurred. Please try again.');
-      }
-      
-      setDocuments([]);
-      setTotalPages(1);
+      handleFetchError(error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleApiError = (apiResponse: any) => {
+    const errorMessage = apiResponse.error || 'Failed to load documents';
+    
+    if (errorMessage.includes('Database connection')) {
+      setError('Database connection issue. Retrying...');
+      // Auto-retry for database connection issues
+      if (retryCount < 3) {
+        setTimeout(() => {
+          setRetryCount(prev => prev + 1);
+        }, 2000 * (retryCount + 1)); // Exponential backoff
+      } else {
+        setError('Unable to connect to the database. Please check your connection and try again.');
+      }
+    } else {
+      setError(errorMessage);
+    }
+    
+    setDocuments([]);
+    setTotalPages(1);
+  };
+
+  const handleFetchError = (error: unknown) => {
+    if (error instanceof Error) {
+      if (error.name === 'AbortError') {
+        setError('Request timed out. Please check your connection and try again.');
+      } else if (error.message.includes('fetch')) {
+        setError('Network error. Please check your internet connection and try again.');
+      } else if (error.message.includes('Database connection')) {
+        setError('Database connection issue. The system is attempting to reconnect...');
+        // Auto-retry for database connection issues
+        if (retryCount < 3) {
+          setTimeout(() => {
+            setRetryCount(prev => prev + 1);
+          }, 2000 * (retryCount + 1));
+        }
+      } else {
+        setError(error.message);
+      }
+    } else {
+      setError('An unexpected error occurred. Please try again.');
+    }
+    
+    setDocuments([]);
+    setTotalPages(1);
   };
 
   const handleRetry = () => {
@@ -156,6 +162,16 @@ export default function DocumentsPage() {
   const handleFilterChange = (key: string, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
     setCurrentPage(1);
+  };
+
+  const handlePreviewClick = (documentId: string) => {
+    setSelectedDocumentId(documentId);
+    setPreviewModalOpen(true);
+  };
+
+  const handleClosePreview = () => {
+    setPreviewModalOpen(false);
+    setSelectedDocumentId(null);
   };
 
   // Show loading screen while checking authentication
@@ -287,7 +303,7 @@ export default function DocumentsPage() {
             {loading ? (
               <div className="p-6 animate-pulse">
                 {[...Array(5)].map((_, i) => (
-                  <div key={i} className="h-16 bg-muted rounded mb-4"></div>
+                  <div key={`loading-${i}`} className="h-16 bg-muted rounded mb-4"></div>
                 ))}
               </div>
             ) : documents.length === 0 ? (
@@ -325,7 +341,7 @@ export default function DocumentsPage() {
                           Channel
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                          Processed
+                          Preview
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                           Actions
@@ -363,8 +379,14 @@ export default function DocumentsPage() {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
                             {doc.channel}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
-                            {doc.processedAt ? formatDate(doc.processedAt.toString()) : 'Not processed'}
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <button
+                              onClick={() => handlePreviewClick(doc.id)}
+                              className="inline-flex items-center px-3 py-1 rounded-md text-sm font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                            >
+                              <EyeIcon className="w-4 h-4 mr-1" />
+                              Preview
+                            </button>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex items-center space-x-3">
@@ -422,6 +444,13 @@ export default function DocumentsPage() {
           </div>
         </div>
       </main>
+
+      {/* Preview Modal */}
+      <DocumentPreviewModal
+        isOpen={previewModalOpen}
+        onClose={handleClosePreview}
+        documentId={selectedDocumentId}
+      />
     </div>
   );
 }

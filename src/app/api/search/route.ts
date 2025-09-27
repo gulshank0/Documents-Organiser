@@ -119,33 +119,24 @@ async function getSearchFilters(userId: string, organizationId?: string) {
   const db = getDatabase();
   
   try {
-    // This would ideally be cached or computed more efficiently
+    // IMPORTANT: Only get filters from user's own documents
     const accessWhere = {
-      OR: [
-        { userId },
-        ...(organizationId ? [{
-          organizationId,
-          organization: {
-            members: { some: { userId } }
-          }
-        }] : []),
-        { shares: { some: { sharedWith: userId } } }
-      ]
+      userId // Only user's own documents
     };
 
-    // Get unique departments, file types, and channels
+    // Get unique departments, file types, and channels from user's documents only
     const [departments, fileTypes, channels] = await Promise.all([
-      db.prisma.document.findMany({
+      db.client.document.findMany({
         where: accessWhere,
         select: { department: true },
         distinct: ['department']
       }),
-      db.prisma.document.findMany({
+      db.client.document.findMany({
         where: accessWhere,
         select: { fileType: true },
         distinct: ['fileType']
       }),
-      db.prisma.document.findMany({
+      db.client.document.findMany({
         where: accessWhere,
         select: { channel: true },
         distinct: ['channel']
@@ -156,8 +147,8 @@ async function getSearchFilters(userId: string, organizationId?: string) {
       departments: departments.map(d => d.department).filter(Boolean),
       fileTypes: fileTypes.map(f => f.fileType).filter(Boolean),
       channels: channels.map(c => c.channel),
-      users: [], // Could be populated with accessible users
-      organizations: [] // Could be populated with user's organizations
+      users: [], // Not needed for personal search
+      organizations: [] // Not needed for personal search
     };
   } catch (error) {
     console.error('Error getting search filters:', error);

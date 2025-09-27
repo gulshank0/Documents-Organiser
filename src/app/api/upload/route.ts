@@ -291,6 +291,10 @@ export async function POST(request: NextRequest) {
       timestamp: new Date().toISOString()
     };
 
+    // Background processing for text extraction and embedding generation
+    // This runs asynchronously after the response is sent
+    processDocumentInBackground(createdDocument.id, filePath, file.name, fileExtension);
+
     console.log('Upload completed successfully:', {
       documentId: createdDocument.id,
       filename: file.name,
@@ -414,4 +418,128 @@ function classifyDepartment(filename: string): string {
   }
   
   return 'GENERAL';
+}
+
+// Background processing function for text extraction and embedding generation
+async function processDocumentInBackground(documentId: string, filePath: string, filename: string, fileExtension: string) {
+  try {
+    console.log(`Starting background processing for document ${documentId}`);
+    
+    const db = getDatabase();
+    
+    // Update document status to PROCESSING
+    await db.client.document.update({
+      where: { id: documentId },
+      data: { 
+        status: 'PROCESSING',
+        processedAt: new Date()
+      }
+    });
+
+    // Extract text based on file type
+    let extractedText = '';
+    
+    try {
+      extractedText = await extractTextFromFile(filePath, fileExtension);
+      
+      if (extractedText) {
+        // Update document with extracted text
+        await db.client.document.update({
+          where: { id: documentId },
+          data: { 
+            extractedText: extractedText.substring(0, 50000), // Limit to 50k characters
+            status: 'COMPLETED'
+          }
+        });
+
+        // Generate and store embedding for semantic search
+        await db.storeDocumentEmbedding(documentId, extractedText);
+        
+        console.log(`Successfully processed document ${documentId} with ${extractedText.length} characters extracted`);
+      } else {
+        // No text extracted but processing completed
+        await db.client.document.update({
+          where: { id: documentId },
+          data: { status: 'COMPLETED' }
+        });
+        
+        console.log(`Document ${documentId} processed but no text extracted`);
+      }
+    } catch (textError) {
+      console.error(`Text extraction failed for document ${documentId}:`, textError);
+      
+      // Update status to FAILED with error message
+      await db.client.document.update({
+        where: { id: documentId },
+        data: { 
+          status: 'FAILED',
+          errorMessage: textError instanceof Error ? textError.message : 'Text extraction failed'
+        }
+      });
+    }
+    
+  } catch (error) {
+    console.error(`Background processing failed for document ${documentId}:`, error);
+    
+    // Update status to FAILED
+    try {
+      const db = getDatabase();
+      await db.client.document.update({
+        where: { id: documentId },
+        data: { 
+          status: 'FAILED',
+          errorMessage: error instanceof Error ? error.message : 'Background processing failed'
+        }
+      });
+    } catch (updateError) {
+      console.error(`Failed to update document status for ${documentId}:`, updateError);
+    }
+  }
+}
+
+// Simple text extraction function (can be enhanced with proper PDF/OCR libraries)
+async function extractTextFromFile(filePath: string, fileExtension: string): Promise<string> {
+  const fs = await import('fs/promises');
+  
+  try {
+    switch (fileExtension.toLowerCase()) {
+      case 'txt':
+      case 'md':
+      case 'csv':
+        // Read plain text files directly
+        return await fs.readFile(filePath, 'utf-8');
+      
+      case 'json':
+        // Parse JSON and extract string values
+        const jsonContent = await fs.readFile(filePath, 'utf-8');
+        const jsonData = JSON.parse(jsonContent);
+        return JSON.stringify(jsonData, null, 2);
+      
+      case 'pdf':
+        // For PDF files, we'd need a proper PDF parser like pdf-parse
+        // For now, return a placeholder that indicates PDF processing is needed
+        return `PDF Document: ${path.basename(filePath)} - Content extraction requires PDF processing library`;
+      
+      case 'doc':
+      case 'docx':
+        // For Word documents, we'd need a library like mammoth
+        return `Word Document: ${path.basename(filePath)} - Content extraction requires Word processing library`;
+      
+      case 'xls':
+      case 'xlsx':
+        // For Excel files, we'd need a library like xlsx
+        return `Excel Document: ${path.basename(filePath)} - Content extraction requires Excel processing library`;
+      
+      case 'ppt':
+      case 'pptx':
+        // For PowerPoint files, we'd need a library like officegen
+        return `PowerPoint Document: ${path.basename(filePath)} - Content extraction requires PowerPoint processing library`;
+      
+      default:
+        return `Binary file: ${path.basename(filePath)} - No text extraction available for this file type`;
+    }
+  } catch (error) {
+    console.error(`Error extracting text from ${filePath}:`, error);
+    return `Error extracting text: ${error instanceof Error ? error.message : 'Unknown error'}`;
+  }
 }
