@@ -1,140 +1,291 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/database';
+import { createAuthenticatedAPIHandler } from '@/lib/auth';
+import { IntegrationType } from '@prisma/client';
 
-export async function GET(request: NextRequest) {
+// Get user's integrations
+export const GET = createAuthenticatedAPIHandler(async (
+  request: NextRequest, 
+  user: any, 
+  authUser: any
+) => {
   try {
-    // Mock integrations data - in production, this would come from database
-    const integrations = [
-      {
-        id: 1,
-        type: 'EMAIL',
-        name: 'Gmail Integration',
-        is_active: true,
-        last_sync: '2024-09-24T10:30:00Z',
-        settings: {
-          email: 'kmrl-docs@gmail.com',
-          provider: 'GMAIL',
-          folders: ['Inbox', 'Documents'],
-          auto_process: true
-        }
-      },
-      {
-        id: 2,
-        type: 'WHATSAPP',
-        name: 'WhatsApp Business',
-        is_active: true,
-        last_sync: '2024-09-24T09:15:00Z',
-        settings: {
-          phone_number: '+91-9876543210',
-          webhook_url: 'https://api.kmrl.com/webhook/whatsapp',
-          auto_process: true
-        }
-      },
-      {
-        id: 3,
-        type: 'SHAREPOINT',
-        name: 'SharePoint Online',
-        is_active: false,
-        last_sync: null,
-        settings: {
-          site_url: 'https://kmrl.sharepoint.com',
-          document_library: 'Shared Documents',
-          sync_interval: '15min'
-        }
-      },
-      {
-        id: 4,
-        type: 'DROPBOX',
-        name: 'Dropbox Business',
-        is_active: true,
-        last_sync: '2024-09-24T08:45:00Z',
-        settings: {
-          folder_path: '/KMRL Documents',
-          auto_sync: true,
-          file_filters: ['pdf', 'doc', 'docx', 'jpg', 'png']
-        }
-      },
-      {
-        id: 5,
-        type: 'GOOGLE_DRIVE',
-        name: 'Google Drive',
-        is_active: true,
-        last_sync: '2024-09-24T11:00:00Z',
-        settings: {
-          folder_id: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
-          shared_drives: ['Engineering', 'Operations'],
-          auto_process: true
-        }
-      }
-    ];
+    const db = getDatabase();
+    const integrations = await db.getUserIntegrations(user.id);
 
-    return NextResponse.json(integrations);
-  } catch (error) {
+    // Transform integrations to include status and mask sensitive data
+    const safeIntegrations = integrations.map(integration => ({
+      id: integration.id,
+      type: integration.type,
+      name: integration.name,
+      isActive: integration.isActive,
+      is_active: integration.isActive, // Add alias for compatibility
+      lastSync: integration.lastSync,
+      last_sync: integration.lastSync, // Add alias for compatibility
+      createdAt: integration.createdAt,
+      updatedAt: integration.updatedAt,
+      // Mask tokens for security
+      hasAccessToken: !!integration.accessToken,
+      hasRefreshToken: !!integration.refreshToken,
+      expiresAt: integration.expiresAt,
+      // Public settings only
+      settings: {
+        ...integration.settings,
+        // Remove any sensitive data from settings
+        clientSecret: undefined,
+        privateKey: undefined,
+        password: undefined
+      }
+    }));
+
+    return NextResponse.json(safeIntegrations);
+
+  } catch (error: any) {
     console.error('Integrations API error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch integrations' },
+      { 
+        success: false,
+        error: 'Failed to fetch integrations',
+        details: error.message,
+        timestamp: new Date().toISOString()
+      },
       { status: 500 }
     );
   }
-}
+});
 
-export async function POST(request: NextRequest) {
+// Create or update integration
+export const POST = createAuthenticatedAPIHandler(async (
+  request: NextRequest, 
+  user: any, 
+  authUser: any
+) => {
   try {
-    const { type, name, settings } = await request.json();
-
-    if (!type || !name) {
+    const data = await request.json();
+    
+    // Validate required fields
+    if (!data.type || !data.name) {
       return NextResponse.json(
-        { error: 'Integration type and name are required' },
+        { 
+          success: false, 
+          error: 'Missing required fields: type, name' 
+        },
         { status: 400 }
       );
     }
 
-    // TODO: Implement integration creation in database
-    const newIntegration = {
-      id: Date.now(),
-      type,
-      name,
-      is_active: false,
-      last_sync: null,
-      settings: settings || {},
-      created_at: new Date().toISOString()
-    };
-
-    return NextResponse.json(newIntegration, { status: 201 });
-  } catch (error) {
-    console.error('Create integration error:', error);
-    return NextResponse.json(
-      { error: 'Failed to create integration' },
-      { status: 500 }
-    );
-  }
-}
-
-export async function PUT(request: NextRequest) {
-  try {
-    const { id, is_active, settings } = await request.json();
-
-    if (!id) {
+    // Validate integration type
+    if (!Object.values(IntegrationType).includes(data.type)) {
       return NextResponse.json(
-        { error: 'Integration ID is required' },
+        { 
+          success: false, 
+          error: 'Invalid integration type',
+          supportedTypes: Object.values(IntegrationType)
+        },
         { status: 400 }
       );
     }
 
-    // TODO: Implement integration update in database
-    const updatedIntegration = {
-      id,
-      is_active: is_active !== undefined ? is_active : true,
-      settings: settings || {},
-      updated_at: new Date().toISOString()
-    };
+    const db = getDatabase();
 
-    return NextResponse.json(updatedIntegration);
-  } catch (error) {
-    console.error('Update integration error:', error);
+    // Validate integration-specific requirements
+    const validationResult = validateIntegrationData(data.type, data);
+    if (!validationResult.valid) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: validationResult.error,
+          requirements: validationResult.requirements
+        },
+        { status: 400 }
+      );
+    }
+
+    // Parse expiration date if provided
+    let expiresAt: Date | undefined;
+    if (data.expiresAt) {
+      expiresAt = new Date(data.expiresAt);
+      if (isNaN(expiresAt.getTime())) {
+        return NextResponse.json(
+          { 
+            success: false, 
+            error: 'Invalid expiration date format' 
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    await db.createUserIntegration({
+      userId: user.id,
+      type: data.type,
+      name: data.name,
+      settings: data.settings || {},
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken,
+      expiresAt
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: `${data.type} integration configured successfully`,
+      data: {
+        type: data.type,
+        name: data.name,
+        isActive: true
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error: any) {
+    console.error('Error creating integration:', error);
     return NextResponse.json(
-      { error: 'Failed to update integration' },
+      { 
+        success: false,
+        error: 'Failed to create integration',
+        details: error.message,
+        timestamp: new Date().toISOString()
+      },
       { status: 500 }
     );
   }
+});
+
+// Validate integration-specific data
+function validateIntegrationData(type: IntegrationType, data: any): {
+  valid: boolean;
+  error?: string;
+  requirements?: string[];
+} {
+  switch (type) {
+    case IntegrationType.GMAIL:
+      if (!data.settings?.email) {
+        return {
+          valid: false,
+          error: 'Gmail integration requires email address',
+          requirements: ['settings.email']
+        };
+      }
+      if (!data.accessToken) {
+        return {
+          valid: false,
+          error: 'Gmail integration requires access token',
+          requirements: ['accessToken']
+        };
+      }
+      break;
+
+    case IntegrationType.GOOGLE_DRIVE:
+      if (!data.accessToken) {
+        return {
+          valid: false,
+          error: 'Google Drive integration requires access token',
+          requirements: ['accessToken']
+        };
+      }
+      break;
+
+    case IntegrationType.DROPBOX:
+      if (!data.accessToken) {
+        return {
+          valid: false,
+          error: 'Dropbox integration requires access token',
+          requirements: ['accessToken']
+        };
+      }
+      break;
+
+    case IntegrationType.SHAREPOINT:
+      if (!data.settings?.tenantId || !data.settings?.siteUrl) {
+        return {
+          valid: false,
+          error: 'SharePoint integration requires tenant ID and site URL',
+          requirements: ['settings.tenantId', 'settings.siteUrl']
+        };
+      }
+      if (!data.accessToken) {
+        return {
+          valid: false,
+          error: 'SharePoint integration requires access token',
+          requirements: ['accessToken']
+        };
+      }
+      break;
+
+    case IntegrationType.SLACK:
+      if (!data.settings?.workspaceId) {
+        return {
+          valid: false,
+          error: 'Slack integration requires workspace ID',
+          requirements: ['settings.workspaceId']
+        };
+      }
+      if (!data.accessToken) {
+        return {
+          valid: false,
+          error: 'Slack integration requires access token',
+          requirements: ['accessToken']
+        };
+      }
+      break;
+
+    case IntegrationType.TEAMS:
+      if (!data.settings?.tenantId) {
+        return {
+          valid: false,
+          error: 'Teams integration requires tenant ID',
+          requirements: ['settings.tenantId']
+        };
+      }
+      if (!data.accessToken) {
+        return {
+          valid: false,
+          error: 'Teams integration requires access token',
+          requirements: ['accessToken']
+        };
+      }
+      break;
+
+    case IntegrationType.WHATSAPP:
+      if (!data.settings?.phoneNumber) {
+        return {
+          valid: false,
+          error: 'WhatsApp integration requires phone number',
+          requirements: ['settings.phoneNumber']
+        };
+      }
+      if (!data.settings?.webhookUrl) {
+        return {
+          valid: false,
+          error: 'WhatsApp integration requires webhook URL',
+          requirements: ['settings.webhookUrl']
+        };
+      }
+      break;
+
+    case IntegrationType.OUTLOOK:
+      if (!data.settings?.email) {
+        return {
+          valid: false,
+          error: 'Outlook integration requires email address',
+          requirements: ['settings.email']
+        };
+      }
+      if (!data.accessToken) {
+        return {
+          valid: false,
+          error: 'Outlook integration requires access token',
+          requirements: ['accessToken']
+        };
+      }
+      break;
+
+    default:
+      return {
+        valid: false,
+        error: 'Unsupported integration type'
+      };
+  }
+
+  return { valid: true };
 }

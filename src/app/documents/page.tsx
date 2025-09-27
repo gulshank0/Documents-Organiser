@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { Navigation } from '@/components/ui/Navigation';
 import { Document, DEPARTMENTS } from '@/types';
@@ -13,8 +15,12 @@ import {
 } from '@heroicons/react/24/outline';
 
 export default function DocumentsPage() {
+  const router = useRouter();
+  const { data: session, status } = useSession();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [filters, setFilters] = useState({
     department: '',
     status: '',
@@ -23,12 +29,25 @@ export default function DocumentsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
+  // Check authentication status
   useEffect(() => {
-    fetchDocuments();
-  }, [currentPage, filters]);
+    if (status === 'loading') return; // Still loading
+    
+    if (status === 'unauthenticated') {
+      router.push('/login');
+      return;
+    }
+    
+    // If authenticated, fetch documents
+    if (status === 'authenticated') {
+      fetchDocuments();
+    }
+  }, [status, currentPage, filters, retryCount]);
 
   const fetchDocuments = async () => {
     setLoading(true);
+    setError(null);
+    
     try {
       const params = new URLSearchParams({
         skip: ((currentPage - 1) * 20).toString(),
@@ -38,40 +57,90 @@ export default function DocumentsPage() {
       });
 
       console.log('Fetching documents with params:', params.toString());
-      const response = await fetch(`/api/documents?${params}`);
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      
+      const response = await fetch(`/api/documents?${params}`, {
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      clearTimeout(timeoutId);
       
       console.log('Documents API response status:', response.status);
       
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
       
-      const data = await response.json();
-      console.log('Documents API response data:', data);
+      const apiResponse = await response.json();
+      console.log('Documents API response data:', apiResponse);
       
-      // Check if data is an array (successful response) or error object
-      if (Array.isArray(data)) {
+      // Check if the API response has the expected structure
+      if (apiResponse.success && Array.isArray(apiResponse.data)) {
         // Filter by search query on client side for simplicity
-        let filteredDocs = data;
+        let filteredDocs = apiResponse.data;
         if (filters.search) {
-          filteredDocs = data.filter((doc: Document) =>
+          filteredDocs = apiResponse.data.filter((doc: Document) =>
             doc.filename.toLowerCase().includes(filters.search.toLowerCase()) ||
-            doc.extracted_text?.toLowerCase().includes(filters.search.toLowerCase())
+            doc.extractedText?.toLowerCase().includes(filters.search.toLowerCase())
           );
         }
         
         console.log('Setting documents:', filteredDocs.length, 'documents found');
         setDocuments(filteredDocs);
         setTotalPages(Math.ceil(filteredDocs.length / 20));
+        setRetryCount(0); // Reset retry count on success
       } else {
-        // Handle API error response
-        console.error('API returned non-array data:', data);
+        // Handle API error response or unexpected structure
+        console.error('API returned unexpected structure:', apiResponse);
+        const errorMessage = apiResponse.error || 'Failed to load documents';
+        
+        if (errorMessage.includes('Database connection')) {
+          setError('Database connection issue. Retrying...');
+          // Auto-retry for database connection issues
+          if (retryCount < 3) {
+            setTimeout(() => {
+              setRetryCount(prev => prev + 1);
+            }, 2000 * (retryCount + 1)); // Exponential backoff
+          } else {
+            setError('Unable to connect to the database. Please check your connection and try again.');
+          }
+        } else {
+          setError(errorMessage);
+        }
+        
         setDocuments([]);
         setTotalPages(1);
       }
       
     } catch (error) {
       console.error('Error fetching documents:', error);
+      
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          setError('Request timed out. Please check your connection and try again.');
+        } else if (error.message.includes('fetch')) {
+          setError('Network error. Please check your internet connection and try again.');
+        } else if (error.message.includes('Database connection')) {
+          setError('Database connection issue. The system is attempting to reconnect...');
+          // Auto-retry for database connection issues
+          if (retryCount < 3) {
+            setTimeout(() => {
+              setRetryCount(prev => prev + 1);
+            }, 2000 * (retryCount + 1));
+          }
+        } else {
+          setError(error.message);
+        }
+      } else {
+        setError('An unexpected error occurred. Please try again.');
+      }
+      
       setDocuments([]);
       setTotalPages(1);
     } finally {
@@ -79,16 +148,50 @@ export default function DocumentsPage() {
     }
   };
 
+  const handleRetry = () => {
+    setRetryCount(0);
+    fetchDocuments();
+  };
+
   const handleFilterChange = (key: string, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
     setCurrentPage(1);
   };
 
+  // Show loading screen while checking authentication
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center space-y-4">
+          <div className="relative">
+            <div className="animate-spin rounded-full h-16 w-16 border-4 border-primary/20 border-t-primary mx-auto"></div>
+            <div className="absolute inset-0 rounded-full h-16 w-16 border-4 border-transparent border-t-primary/40 animate-pulse mx-auto"></div>
+          </div>
+          <p className="text-muted-foreground text-lg">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If not authenticated, the useEffect will redirect, but show loading in the meantime
+  if (status === 'unauthenticated') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center space-y-4">
+          <div className="relative">
+            <div className="animate-spin rounded-full h-16 w-16 border-4 border-primary/20 border-t-primary mx-auto"></div>
+          </div>
+          <p className="text-muted-foreground text-lg">Redirecting to login...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen">
       <Navigation />
-      <main className="flex-1 p-8">
-        <div className="max-w-7xl mx-auto">
+      <main className="flex-1 pt-16">
+        <div className="max-w-7xl mx-auto pt-10 px-4 sm:px-6 lg:px-8">
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-foreground">Documents</h1>
@@ -150,6 +253,35 @@ export default function DocumentsPage() {
             </div>
           </div>
 
+          {/* Error Display */}
+          {error && (
+            <div className="mb-6 p-4 rounded-lg border border-destructive/20 bg-destructive/10">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-6 h-6 rounded-full bg-destructive/20 flex items-center justify-center">
+                    <span className="text-destructive text-sm">!</span>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-destructive">Connection Issue</h3>
+                    <p className="text-sm text-muted-foreground mt-1">{error}</p>
+                    {retryCount > 0 && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Retry attempt {retryCount} of 3...
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={handleRetry}
+                  disabled={loading}
+                  className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-destructive text-destructive-foreground hover:bg-destructive/90 px-3 py-2 disabled:opacity-50 transition-all duration-200"
+                >
+                  {loading ? 'Retrying...' : 'Retry'}
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Documents Table */}
           <div className="glass-card bg-card/50 border border-border/50">
             {loading ? (
@@ -206,14 +338,14 @@ export default function DocumentsPage() {
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
                               <div className="text-2xl mr-3">
-                                {getFileTypeIcon(doc.file_type)}
+                                {getFileTypeIcon(doc.fileType)}
                               </div>
                               <div>
                                 <div className="text-sm font-medium text-foreground max-w-xs truncate">
                                   {doc.filename}
                                 </div>
                                 <div className="text-sm text-muted-foreground">
-                                  {doc.file_type?.toUpperCase()}
+                                  {doc.fileType?.toUpperCase()}
                                 </div>
                               </div>
                             </div>
@@ -232,7 +364,7 @@ export default function DocumentsPage() {
                             {doc.channel}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
-                            {doc.processed_at ? formatDate(doc.processed_at.toString()) : 'Not processed'}
+                            {doc.processedAt ? formatDate(doc.processedAt.toString()) : 'Not processed'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex items-center space-x-3">

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Navigation } from '@/components/ui/Navigation';
-import { validateFileType, formatFileSize, getDepartmentColor, getFileTypeIcon, getChannelIcon } from '@/lib/utils';
+import { formatFileSize, getDepartmentColor, getFileTypeIcon, getChannelIcon } from '@/lib/utils';
 import { DEPARTMENTS, SUPPORTED_FILE_TYPES, UploadedFile, FolderTreeItem } from '@/types';
 import toast from 'react-hot-toast';
 import {
@@ -33,10 +33,15 @@ export default function UploadPage() {
       const response = await fetch('/api/folders');
       if (response.ok) {
         const data = await response.json();
-        setFolders(data);
+        // Ensure data is an array before setting it
+        setFolders(Array.isArray(data) ? data : []);
+      } else {
+        console.error('Failed to fetch folders:', response.statusText);
+        setFolders([]);
       }
     } catch (error) {
       console.error('Failed to fetch folders:', error);
+      setFolders([]);
     }
   };
 
@@ -107,11 +112,11 @@ export default function UploadPage() {
         toast.error(`${rejectedFiles.length} file(s) rejected. Please check file type and size.`);
       }
 
-      const newFiles = acceptedFiles.map(file => ({
+      const newFiles: UploadedFile[] = acceptedFiles.map(file => ({
         file,
         status: 'pending' as const,
         progress: 0,
-        folderId: selectedFolder || undefined,
+        folderId: selectedFolder ? selectedFolder.toString() : undefined,
         tags: tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : []
       }));
 
@@ -243,20 +248,28 @@ export default function UploadPage() {
     }
   };
 
-  const renderFolderOptions = (folders: FolderTreeItem[], level = 0): JSX.Element[] => {
-    return folders.flatMap(folder => [
-      <option key={folder.id} value={folder.id}>
-        {'  '.repeat(level) + folder.name} ({folder.document_count})
-      </option>,
-      ...renderFolderOptions(folder.children, level + 1)
-    ]);
+  const renderFolderOptions = (folders: FolderTreeItem[], level = 0): React.ReactElement[] => {
+    // Safety check: ensure folders is an array and filter out invalid entries
+    if (!Array.isArray(folders)) {
+      return [];
+    }
+
+    return folders
+      .filter(folder => folder?.id && folder?.name) // Use optional chaining
+      .flatMap(folder => [
+        <option key={folder.id} value={folder.id}>
+          {'  '.repeat(level) + folder.name} ({folder.documentCount || 0})
+        </option>,
+        // Recursively render children, ensuring children is an array
+        ...renderFolderOptions(Array.isArray(folder.children) ? folder.children : [], level + 1)
+      ]);
   };
 
   return (
     <div className="flex min-h-screen">
       <Navigation />
       <main className="flex-1 p-8">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-6xl mx-auto pt-16 px-4 sm:px-6 lg:px-8">
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-foreground mb-2">Upload Documents</h1>
@@ -425,11 +438,11 @@ export default function UploadPage() {
                         
                         {fileItem.status === 'completed' && fileItem.result && (
                           <div className="flex items-center space-x-2">
-                            <span className={`px-2 py-1 rounded-full text-xs ${getDepartmentColor(fileItem.result.department)}`}>
-                              {fileItem.result.department}
+                            <span className={`px-2 py-1 rounded-full text-xs ${getDepartmentColor(fileItem.result.department || '')}`}>
+                              {fileItem.result.department || 'UNKNOWN'}
                             </span>
                             <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs dark:bg-blue-900/20 dark:text-blue-400">
-                              {getChannelIcon(fileItem.result.channel)} {fileItem.result.channel}
+                              {getChannelIcon(fileItem.result.channel || 'WEB_UPLOAD')} {fileItem.result.channel || 'WEB_UPLOAD'}
                             </span>
                           </div>
                         )}
@@ -467,7 +480,7 @@ export default function UploadPage() {
                       {/* Success Info */}
                       {fileItem.status === 'completed' && fileItem.result && (
                         <div className="mt-2 text-xs text-green-600 dark:text-green-400">
-                          ✓ Uploaded successfully • ID: {fileItem.result.document_id} • Processing: {fileItem.result.status}
+                          ✓ Uploaded successfully • ID: {fileItem.result.documentId} • Processing: {fileItem.result.status}
                         </div>
                       )}
                     </div>

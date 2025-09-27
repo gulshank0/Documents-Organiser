@@ -4,6 +4,8 @@ import './globals.css'
 import { Navigation } from '@/components/ui/Navigation'
 import { QueryProvider } from './provider'
 import { ThemeProvider } from '@/contexts/ThemeContext'
+import { ConditionalNavigation } from '@/components/ui/ConditionalNavigation'
+import { AuthProvider } from '@/components/AuthProvider'
 
 const inter = Inter({ 
   subsets: ['latin'],
@@ -50,31 +52,54 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} scroll-smooth`} suppressHydrationWarning>
       <body className={`${inter.className} antialiased bg-background text-foreground min-h-screen overflow-x-hidden`}>
-        <ThemeProvider>
-          <QueryProvider>
-            {/* Background Pattern */}
-            <div className="fixed inset-0 -z-10">
-              <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]" />
-              <div className="absolute top-0 right-0 -translate-y-12 translate-x-12">
-                <div className="w-96 h-96 bg-gradient-to-br from-primary/20 to-primary/10 rounded-full blur-3xl animate-pulse-slow" />
+        <AuthProvider>
+          <ThemeProvider>
+            <QueryProvider>
+              {/* Background Pattern */}
+              <div className="fixed inset-0 -z-10">
+                <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]" />
+                <div className="absolute top-0 right-0 -translate-y-12 translate-x-12">
+                  <div className="w-96 h-96 bg-gradient-to-br from-primary/20 to-primary/10 rounded-full blur-3xl animate-pulse-slow" />
+                </div>
+                <div className="absolute bottom-0 left-0 translate-y-12 -translate-x-12">
+                  <div className="w-96 h-96 bg-gradient-to-br from-primary/10 to-primary/5 rounded-full blur-3xl animate-pulse-slow" />
+                </div>
               </div>
-              <div className="absolute bottom-0 left-0 translate-y-12 -translate-x-12">
-                <div className="w-96 h-96 bg-gradient-to-br from-primary/10 to-primary/5 rounded-full blur-3xl animate-pulse-slow" />
-              </div>
-            </div>
-            
-            {/* Navigation Component - handles its own positioning */}
-            <Navigation />
-            
-            {/* Main Content - positioned to work with the Navigation */}
-            <main className="xl:ml-80 min-h-screen">
-              <div className="pt-16 xl:pt-20 min-h-screen w-full">
+              
+              {/* Conditional Navigation Component */}
+              <ConditionalNavigation />
+              
+              {/* Main Content */}
+              <ConditionalMainContent>
                 {children}
-              </div>
-            </main>
-          </QueryProvider>
-        </ThemeProvider>
+              </ConditionalMainContent>
+            </QueryProvider>
+          </ThemeProvider>
+        </AuthProvider>
       </body>
     </html>
   )
+}
+
+// Component to conditionally render main content with proper positioning
+function ConditionalMainContent({ children }: { children: React.ReactNode }) {
+  'use client';
+  
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : '/';
+  
+  // Pages that don't need navigation spacing
+  const excludedPages = ['/', '/login', '/register'];
+  const shouldExcludeSpacing = excludedPages.includes(pathname);
+  
+  if (shouldExcludeSpacing) {
+    return <>{children}</>;
+  }
+  
+  return (
+    <main className="xl:ml-80 min-h-screen">
+      <div className="pt-16 xl:pt-20 min-h-screen w-full">
+        {children}
+      </div>
+    </main>
+  );
 }

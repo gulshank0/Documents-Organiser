@@ -19,8 +19,7 @@ const nextConfig = {
     return config;
   },
   env: {
-    DATABASE_URL: process.env.DATABASE_URL || './kmrl_documents.db',
-    ML_ENABLED: process.env.ML_ENABLED || 'true',
+    DATABASE_URL: process.env.DATABASE_URL ,
     UPLOAD_DIR: process.env.UPLOAD_DIR || './uploads'
   }
 };

@@ -2,8 +2,9 @@
 
 import React from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
+import { signOut } from 'next-auth/react'
 import { 
   Home, 
   FileText, 
@@ -15,13 +16,18 @@ import {
   Settings,
   Bell,
   User,
-  Palette
+  Palette,
+  LogOut,
+  UserCircle,
+  Shield,
+  HelpCircle
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { NotificationPanel } from '@/components/ui/NotificationPanel'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/contexts/ThemeContext'
+import { useSession } from '@/hooks/useSession'
 
 const navigationItems = [
   {
@@ -63,22 +69,47 @@ const navigationItems = [
 
 export function Navigation() {
   const pathname = usePathname()
+  const router = useRouter()
+  const { user, isAuthenticated, isLoading } = useSession()
   const [isMobileOpen, setIsMobileOpen] = React.useState(false)
   const [isCollapsed, setIsCollapsed] = React.useState(false)
   const [hoveredItem, setHoveredItem] = React.useState<string | null>(null)
   const [showThemePanel, setShowThemePanel] = React.useState(false)
+  const [showUserMenu, setShowUserMenu] = React.useState(false)
   
-  // Use theme context instead of local state
   const { currentTheme, theme, setTheme, themes } = useTheme()
 
-  // Close mobile menu when route changes
   React.useEffect(() => {
     setIsMobileOpen(false)
   }, [pathname])
 
+  const handleSignOut = async () => {
+    try {
+      await signOut({ 
+        callbackUrl: '/login',
+        redirect: true 
+      })
+    } catch (error) {
+      console.error('Sign out error:', error)
+    }
+  }
+
+  const getUserInitials = (name?: string) => {
+    if (!name) return 'U'
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2)
+  }
+
+  const getUserDisplayName = () => {
+    return user?.name || user?.email?.split('@')[0] || 'User'
+  }
+
   return (
     <>
-      {/* Mobile Navigation Toggle */}
       <div className="xl:hidden fixed top-4 left-4 z-50">
         <Button
           variant="outline"
@@ -112,7 +143,6 @@ export function Navigation() {
         </Button>
       </div>
 
-      {/* Desktop Sidebar Collapse Toggle */}
       <div className="hidden xl:block fixed top-0 z-50 transition-all duration-300" style={{ left: isCollapsed ? '70px' : '280px' }}>
         <Button
           variant="ghost"
@@ -129,7 +159,6 @@ export function Navigation() {
         </Button>
       </div>
 
-      {/* Mobile Overlay */}
       <AnimatePresence>
         {isMobileOpen && (
           <motion.div
@@ -142,7 +171,6 @@ export function Navigation() {
         )}
       </AnimatePresence>
 
-      {/* Navigation Sidebar - Always visible on desktop */}
       <div className={cn(
         "hidden xl:block fixed inset-y-0 left-0 z-30 transition-all duration-500 ease-in-out",
         isCollapsed ? "w-20" : "w-80"
@@ -158,12 +186,10 @@ export function Navigation() {
           }}
           className="h-full glass-card border-r border-border/30 flex flex-col shadow-xl backdrop-blur-xl bg-background/95"
         >
-          {/* Header */}
           <div className={cn(
             "flex-shrink-0 border-b border-border/30 transition-all duration-500 relative overflow-hidden",
             isCollapsed ? "p-4" : "p-6 xl:p-8"
           )}>
-            {/* Background Gradient */}
             <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5" />
             
             <div className={cn(
@@ -203,7 +229,61 @@ export function Navigation() {
             </div>
           </div>
 
-          {/* Navigation Items */}
+          {isAuthenticated && user && (
+            <div className={cn(
+              "flex-shrink-0 border-b border-border/30 transition-all duration-500 relative overflow-hidden",
+              isCollapsed ? "p-3" : "p-4"
+            )}>
+              <div className="absolute inset-0 bg-gradient-to-br from-accent/5 via-transparent to-primary/5" />
+              
+              {isCollapsed ? (
+                <div className="flex justify-center relative z-10">
+                  <motion.div 
+                    className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-primary-foreground font-semibold text-sm shadow-lg"
+                    whileHover={{ scale: 1.05 }}
+                    title={getUserDisplayName()}
+                  >
+                    {user.image ? (
+                      <img 
+                        src={user.image} 
+                        alt={getUserDisplayName()} 
+                        className="w-full h-full rounded-full object-cover"
+                      />
+                    ) : (
+                      getUserInitials(user.name)
+                    )}
+                  </motion.div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 relative z-10">
+                  <motion.div 
+                    className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-primary-foreground font-semibold shadow-lg flex-shrink-0"
+                    whileHover={{ scale: 1.05 }}
+                  >
+                    {user.image ? (
+                      <img 
+                        src={user.image} 
+                        alt={getUserDisplayName()} 
+                        className="w-full h-full rounded-full object-cover"
+                      />
+                    ) : (
+                      getUserInitials(user.name)
+                    )}
+                  </motion.div>
+                  
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-foreground truncate">
+                      {getUserDisplayName()}
+                    </p>
+                    <p className="text-sm text-muted-foreground truncate">
+                      {user.email}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className={cn(
             "flex-1 py-6 xl:py-8 space-y-2 xl:space-y-3 overflow-y-auto transition-all duration-500",
             isCollapsed ? "px-3" : "px-4 xl:px-6"
@@ -236,7 +316,6 @@ export function Navigation() {
                     )}
                     title={isCollapsed ? item.name : undefined}
                   >
-                    {/* Active indicator background */}
                     {isActive && (
                       <motion.div
                         layoutId="activeBackground"
@@ -246,7 +325,6 @@ export function Navigation() {
                       />
                     )}
                     
-                    {/* Icon container */}
                     <motion.div 
                       className={cn(
                         "flex-shrink-0 relative z-10 transition-all duration-300",
@@ -263,7 +341,6 @@ export function Navigation() {
                       )} />
                     </motion.div>
                     
-                    {/* Content */}
                     {!isCollapsed && (
                       <motion.div
                         initial={{ opacity: 0 }}
@@ -293,7 +370,6 @@ export function Navigation() {
                       </motion.div>
                     )}
                     
-                    {/* Chevron */}
                     {!isCollapsed && (
                       <motion.div
                         className="flex-shrink-0 relative z-10"
@@ -310,7 +386,6 @@ export function Navigation() {
                       </motion.div>
                     )}
 
-                    {/* Side indicator for collapsed state */}
                     {isCollapsed && isActive && (
                       <motion.div
                         layoutId="collapsedActiveIndicator"
@@ -325,12 +400,10 @@ export function Navigation() {
             })}
           </div>
 
-          {/* Footer */}
           <div className={cn(
             "flex-shrink-0 border-t border-border/30 transition-all duration-500 relative overflow-hidden",
             isCollapsed ? "p-3" : "p-4 xl:p-6"
           )}>
-            {/* Background */}
             <div className="absolute inset-0 bg-gradient-to-t from-accent/5 to-transparent" />
             
             {isCollapsed ? (
@@ -401,7 +474,6 @@ export function Navigation() {
         </motion.nav>
       </div>
 
-      {/* Mobile Navigation Sidebar */}
       <AnimatePresence>
         {isMobileOpen && (
           <motion.nav
@@ -415,7 +487,6 @@ export function Navigation() {
             }}
             className="xl:hidden fixed top-0 left-0 h-full w-80 glass-card border-r border-border/30 z-50 flex flex-col shadow-2xl backdrop-blur-xl bg-background/95"
           >
-            {/* Mobile Header */}
             <div className="flex-shrink-0 border-b border-border/30 p-6 relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5" />
               
@@ -439,7 +510,38 @@ export function Navigation() {
               </div>
             </div>
 
-            {/* Mobile Navigation Items */}
+            {isAuthenticated && user && (
+              <div className="flex-shrink-0 border-b border-border/30 p-4 relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-accent/5 via-transparent to-primary/5" />
+                
+                <div className="flex items-center gap-3 relative z-10">
+                  <motion.div 
+                    className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-primary-foreground font-semibold shadow-lg flex-shrink-0"
+                    whileHover={{ scale: 1.05 }}
+                  >
+                    {user.image ? (
+                      <img 
+                        src={user.image} 
+                        alt={getUserDisplayName()} 
+                        className="w-full h-full rounded-full object-cover"
+                      />
+                    ) : (
+                      getUserInitials(user.name)
+                    )}
+                  </motion.div>
+                  
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-foreground truncate">
+                      {getUserDisplayName()}
+                    </p>
+                    <p className="text-sm text-muted-foreground truncate">
+                      {user.email}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="flex-1 py-6 space-y-3 overflow-y-auto px-6">
               {navigationItems.map((item, index) => {
                 const isActive = pathname === item.href
@@ -461,7 +563,6 @@ export function Navigation() {
                           : "hover:bg-accent/50 hover:backdrop-blur-sm"
                       )}
                     >
-                      {/* Active indicator */}
                       {isActive && (
                         <motion.div
                           layoutId="mobileActiveBackground"
@@ -471,7 +572,6 @@ export function Navigation() {
                         />
                       )}
                       
-                      {/* Icon */}
                       <div className={cn(
                         "flex-shrink-0 relative z-10 transition-all duration-300",
                         isActive && "drop-shadow-sm"
@@ -482,7 +582,6 @@ export function Navigation() {
                         )} />
                       </div>
                       
-                      {/* Content */}
                       <div className="flex-1 min-w-0 relative z-10">
                         <div className="flex items-center justify-between">
                           <p className={cn(
@@ -505,7 +604,6 @@ export function Navigation() {
                         </p>
                       </div>
                       
-                      {/* Chevron */}
                       <div className="flex-shrink-0 relative z-10">
                         <ChevronRight className={cn(
                           "w-5 h-5 transition-all duration-300",
@@ -518,7 +616,6 @@ export function Navigation() {
               })}
             </div>
 
-            {/* Mobile Footer */}
             <div className="flex-shrink-0 border-t border-border/30 p-6 relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-t from-accent/5 to-transparent" />
               
@@ -549,21 +646,34 @@ export function Navigation() {
                   </Badge>
                 </div>
                 
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full justify-start gap-2 hover:bg-accent/50"
-                >
-                  <Settings className="w-4 h-4" />
-                  Settings
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="flex-1 justify-start gap-2 hover:bg-accent/50"
+                  >
+                    <Settings className="w-4 h-4" />
+                    Settings
+                  </Button>
+                  
+                  {isAuthenticated && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleSignOut}
+                      className="px-3 hover:bg-destructive/10 hover:text-destructive"
+                      title="Sign out"
+                    >
+                      <LogOut className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           </motion.nav>
         )}
       </AnimatePresence>
 
-      {/* Top Navigation Bar */}
       <header className={cn(
         "fixed top-0 right-0 glass-card border-b border-border/30 z-30 h-16 xl:h-20 transition-all duration-500 backdrop-blur-xl bg-background/95",
         isCollapsed ? "left-20 xl:left-20" : "left-0 xl:left-80"
@@ -585,7 +695,6 @@ export function Navigation() {
           </div>
           
           <div className="flex items-center gap-3 xl:gap-4 flex-shrink-0">
-            {/* Theme Changer Button */}
             <div className="relative">
               <Button 
                 variant="ghost" 
@@ -598,11 +707,9 @@ export function Navigation() {
                 })}
               </Button>
 
-              {/* Theme Selection Panel */}
               <AnimatePresence>
                 {showThemePanel && (
                   <>
-                    {/* Backdrop */}
                     <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
@@ -611,7 +718,6 @@ export function Navigation() {
                       onClick={() => setShowThemePanel(false)}
                     />
                     
-                    {/* Theme Panel */}
                     <motion.div
                       initial={{ opacity: 0, scale: 0.95, y: -10 }}
                       animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -647,7 +753,6 @@ export function Navigation() {
                                 whileHover={{ scale: 1.02 }}
                                 whileTap={{ scale: 0.98 }}
                               >
-                                {/* Theme Preview Background */}
                                 <div className={cn(
                                   "absolute inset-0 rounded-xl opacity-20 bg-gradient-to-br",
                                   themeOption.colors
@@ -667,7 +772,6 @@ export function Navigation() {
                                     </div>
                                   </div>
                                   
-                                  {/* Theme Color Preview */}
                                   <div className="flex gap-1">
                                     <div className={cn(
                                       "w-3 h-3 rounded-full bg-gradient-to-r",
@@ -684,7 +788,6 @@ export function Navigation() {
                                   </div>
                                 </div>
                                 
-                                {/* Selection Indicator */}
                                 {isSelected && (
                                   <motion.div
                                     layoutId="themeSelection"
@@ -720,14 +823,97 @@ export function Navigation() {
               <Bell className="w-4 h-4 xl:w-5 xl:h-5" />
             </Button>
             <NotificationPanel />
-            <Button variant="ghost" size="sm" className="hover:bg-accent/50">
-              <User className="w-4 h-4 xl:w-5 xl:h-5" />
-            </Button>
+            
+            {isAuthenticated && user ? (
+              <div className="relative">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="hover:bg-accent/50 flex items-center gap-2 px-2"
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                >
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-primary-foreground font-semibold text-sm">
+                    {user.image ? (
+                      <img 
+                        src={user.image} 
+                        alt={getUserDisplayName()} 
+                        className="w-full h-full rounded-full object-cover"
+                      />
+                    ) : (
+                      getUserInitials(user.name)
+                    )}
+                  </div>
+                  <span className="hidden md:block font-medium truncate max-w-32">
+                    {getUserDisplayName()}
+                  </span>
+                </Button>
+
+                <AnimatePresence>
+                  {showUserMenu && (
+                    <>
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-40"
+                        onClick={() => setShowUserMenu(false)}
+                      />
+                      
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                        transition={{ duration: 0.2 }}
+                        className="absolute right-0 top-full mt-2 w-64 bg-background/95 backdrop-blur-xl border border-border/50 rounded-2xl shadow-2xl z-50 py-2"
+                      >
+                        <div className="px-4 py-3 border-b border-border/30">
+                          <p className="font-semibold truncate">{getUserDisplayName()}</p>
+                          <p className="text-sm text-muted-foreground truncate">{user.email}</p>
+                        </div>
+                        
+                        <div className="py-2">
+                          <button className="w-full px-4 py-2 text-left hover:bg-accent/50 transition-colors flex items-center gap-3">
+                            <UserCircle className="w-4 h-4" />
+                            <span>Profile Settings</span>
+                          </button>
+                          <button className="w-full px-4 py-2 text-left hover:bg-accent/50 transition-colors flex items-center gap-3">
+                            <Shield className="w-4 h-4" />
+                            <span>Privacy & Security</span>
+                          </button>
+                          <button className="w-full px-4 py-2 text-left hover:bg-accent/50 transition-colors flex items-center gap-3">
+                            <HelpCircle className="w-4 h-4" />
+                            <span>Help & Support</span>
+                          </button>
+                        </div>
+                        
+                        <div className="border-t border-border/30 pt-2">
+                          <button 
+                            onClick={handleSignOut}
+                            className="w-full px-4 py-2 text-left hover:bg-destructive/10 hover:text-destructive transition-colors flex items-center gap-3"
+                          >
+                            <LogOut className="w-4 h-4" />
+                            <span>Sign Out</span>
+                          </button>
+                        </div>
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </div>
+            ) : (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="hover:bg-accent/50"
+                onClick={() => router.push('/login')}
+              >
+                <User className="w-4 h-4 xl:w-5 xl:h-5" />
+              </Button>
+            )}
           </div>
         </div>
       </header>
 
-      {/* Content spacer for fixed header */}
       <div className="h-16 xl:h-20 xl:hidden" />
     </>
   )

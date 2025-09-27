@@ -2,264 +2,311 @@ import { NextRequest, NextResponse } from 'next/server';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { getDatabase } from '@/lib/database';
-import { SUPPORTED_FILE_TYPES } from '@/types';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { checkStorageQuota } from '@/lib/auth';
+import { SUPPORTED_FILE_TYPES, MAX_FILE_SIZE } from '@/types';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('Upload API called');
-    
-    // Parse form data with better error handling
-    let formData;
-    try {
-      formData = await request.formData();
-    } catch (parseError) {
-      console.error('Failed to parse form data:', parseError);
+    // Use NextAuth for authentication
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.email) {
       return NextResponse.json(
-        { error: 'Invalid form data' },
-        { status: 400 }
+        { 
+          success: false,
+          error: 'No authentication token provided' 
+        },
+        { status: 401 }
       );
     }
 
+    // Get user from database using email from session
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      include: {
+        organizations: {
+          include: {
+            organization: true
+          }
+        }
+      }
+    });
+
+    if (!user?.isActive) {
+      return NextResponse.json(
+        { 
+          success: false,
+          error: 'User not found or inactive' 
+        },
+        { status: 401 }
+      );
+    }
+
+    const formData = await request.formData();
     const file = formData.get('file') as File;
-    const channel = formData.get('channel') as string || 'WEB_UPLOAD';
-    const uploader = formData.get('uploader') as string || 'web_user';
+    const department = formData.get('department') as string;
     const folderId = formData.get('folderId') as string;
     const tags = formData.get('tags') as string;
-    const department = formData.get('department') as string;
-
-    console.log('Upload request received:', {
-      hasFile: !!file,
-      filename: file?.name,
-      fileSize: file?.size,
-      channel,
-      department
-    });
+    const visibility = formData.get('visibility') as string || 'PRIVATE';
+    const channel = formData.get('channel') as string || 'WEB_UPLOAD';
+    
+    // Get organization context - simplified since we don't have the helper function
+    const organizationId = user.organizations?.[0]?.organizationId || null;
 
     if (!file) {
       return NextResponse.json(
-        { error: 'No file uploaded' },
+        { 
+          success: false,
+          error: 'No file provided' 
+        },
         { status: 400 }
       );
     }
 
-    // Validate file type and size
-    const fileExtension = path.extname(file.name).toLowerCase().replace('.', '').toUpperCase();
-    const maxSize = 100 * 1024 * 1024; // 100MB
-
-    console.log('File validation:', { fileExtension, fileSize: file.size, maxSize });
-
-    if (!SUPPORTED_FILE_TYPES.includes(fileExtension as any)) {
+    // Validate file size
+    if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
-        { error: `File type "${fileExtension}" not supported. Supported types: ${SUPPORTED_FILE_TYPES.join(', ')}` },
+        { 
+          success: false,
+          error: `File size exceeds maximum limit of ${MAX_FILE_SIZE / (1024 * 1024)}MB` 
+        },
         { status: 400 }
       );
     }
 
-    if (file.size > maxSize) {
+    // Check storage quota
+    const quotaCheck = await checkStorageQuota(user.id, file.size);
+    if (!quotaCheck.allowed) {
       return NextResponse.json(
-        { error: `File size exceeds 100MB limit` },
+        { 
+          success: false,
+          error: 'Storage quota exceeded',
+          details: {
+            currentUsage: quotaCheck.currentUsage,
+            maxStorage: quotaCheck.maxStorage,
+            remainingStorage: quotaCheck.remainingStorage,
+            requestedSize: file.size
+          }
+        },
+        { status: 413 }
+      );
+    }
+
+    // Validate file type
+    const fileExtension = file.name.split('.').pop()?.toLowerCase();
+    if (!fileExtension || !SUPPORTED_FILE_TYPES.includes(fileExtension as any)) {
+      return NextResponse.json(
+        { 
+          success: false,
+          error: 'Unsupported file type',
+          supportedTypes: SUPPORTED_FILE_TYPES
+        },
         { status: 400 }
       );
     }
 
-    // Create upload directory structure with better error handling
-    const uploadDir = path.join(process.cwd(), 'uploads', channel.toLowerCase());
+    // Create upload directory structure
+    const uploadDir = organizationId ? 
+      path.join(process.cwd(), 'uploads', 'organizations', organizationId) :
+      path.join(process.cwd(), 'uploads', 'users', user.id);
+    
     try {
       await mkdir(uploadDir, { recursive: true });
-      console.log('Upload directory created/verified:', uploadDir);
-    } catch (dirError) {
-      console.error('Failed to create upload directory:', dirError);
-      return NextResponse.json(
-        { error: 'Failed to create upload directory' },
-        { status: 500 }
-      );
+    } catch (error) {
+      console.error('Failed to create upload directory:', error);
     }
 
-    // Generate unique filename with timestamp
+    // Generate unique filename
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const safeFilename = `${timestamp}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-    const filePath = path.join(uploadDir, safeFilename);
-    
-    // Save the file with better error handling
+    const sanitizedFilename = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const filename = `${timestamp}-${sanitizedFilename}`;
+    const filePath = path.join(uploadDir, filename);
+
+    // Save file to disk
     try {
       const bytes = await file.arrayBuffer();
       const buffer = Buffer.from(bytes);
       await writeFile(filePath, buffer);
       console.log('File saved successfully:', filePath);
-    } catch (fileError) {
-      console.error('Failed to save file:', fileError);
+    } catch (error) {
+      console.error('Failed to save file:', error);
       return NextResponse.json(
-        { error: 'Failed to save file to disk' },
+        { 
+          success: false,
+          error: 'Failed to save file to disk' 
+        },
         { status: 500 }
       );
     }
 
-    // Database operations with fallback
+    // Database operations
     let createdDocument;
-    let databaseConnected = false;
+    const db = getDatabase();
     
     try {
-      const db = getDatabase();
+      // Test database connection first, but don't fail if it's not available
+      const isConnected = await db.testConnection();
+      console.log('Database connection status:', isConnected);
       
-      // Test database connection with timeout
-      const connectionTest = await Promise.race([
-        db.testConnection(),
-        new Promise<boolean>((_, reject) => 
-          setTimeout(() => reject(new Error('Database connection timeout')), 3000)
-        )
-      ]);
-      
-      databaseConnected = connectionTest;
-      console.log('Database connection status:', databaseConnected);
-      
-      if (databaseConnected) {
-        // Determine MIME type and classify department
-        const mimeType = file.type || 'application/octet-stream';
-        const classifiedDepartment = department || classifyDepartment(file.name);
-        
-        // Parse tags
-        const parsedTags = tags ? tags.split(',').map(tag => tag.trim()).filter(Boolean) : [];
-
-        // Generate metadata
-        const metadata = {
-          original_filename: file.name,
-          upload_timestamp: new Date().toISOString(),
-          file_size: file.size,
-          channel: channel,
-          uploader: uploader,
-          file_extension: fileExtension,
-          mime_type: mimeType,
-          is_image: mimeType.startsWith('image/'),
-          is_video: mimeType.startsWith('video/'),
-          is_audio: mimeType.startsWith('audio/'),
-          is_document: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'].includes(mimeType),
-          processing_hints: {
-            needs_ocr: ['PDF', 'JPG', 'JPEG', 'PNG', 'TIFF'].includes(fileExtension),
-            needs_thumbnail: mimeType.startsWith('image/') || mimeType.startsWith('video/'),
-            needs_text_extraction: !mimeType.startsWith('image/') && !mimeType.startsWith('video/') && !mimeType.startsWith('audio/')
-          }
-        };
-
-        // Create document record in database with simpler data structure
-        const documentData = {
+      if (!isConnected) {
+        console.warn('Database not connected, but proceeding with file-only upload');
+        // Return success response even without database storage
+        return NextResponse.json({
+          success: true,
           filename: file.name,
-          original_path: filePath,
-          file_type: fileExtension,
-          mime_type: mimeType,
-          file_size: BigInt(file.size),
-          channel: channel,
-          status: 'PENDING',
-          department: classifiedDepartment,
-          uploaded_by: uploader,
-          uploaded_at: new Date(),
-          processed_at: null,
-          extracted_text: null,
-          meta_data: JSON.stringify(metadata),
-          // Only include enhanced fields if they're provided
-          ...(parsedTags.length > 0 && { tags: parsedTags }),
-          ...(folderId && { folder_id: parseInt(folderId) })
-        };
-
-        try {
-          createdDocument = await db.createDocument(documentData);
-          console.log('Document created in database:', createdDocument.id);
-        } catch (dbError) {
-          console.error('Database insertion error:', dbError);
-          
-          // Try with minimal data structure as fallback
-          const basicDocumentData = {
-            filename: file.name,
-            original_path: filePath,
-            file_type: fileExtension,
-            mime_type: mimeType,
-            channel: channel,
-            status: 'PENDING',
-            department: classifiedDepartment,
-            uploaded_by: uploader,
-            uploaded_at: new Date(),
-            meta_data: JSON.stringify(metadata)
-          };
-          
-          try {
-            createdDocument = await db.createDocument(basicDocumentData);
-            console.log('Document created with basic schema:', createdDocument.id);
-          } catch (basicError) {
-            console.error('Basic schema insertion also failed:', basicError);
-            // Don't fail the upload, just create a mock response
-            createdDocument = {
-              id: Date.now(), // Temporary ID
-              filename: file.name,
-              status: 'PENDING'
-            };
-          }
-        }
-      } else {
-        // Database not connected, create mock response
-        console.log('Database not connected, creating file-only upload');
-        createdDocument = {
-          id: Date.now(), // Temporary ID
-          filename: file.name,
-          status: 'PENDING'
-        };
+          fileSize: file.size,
+          mimeType: file.type,
+          status: 'FILE_ONLY',
+          message: 'File uploaded successfully (database offline)',
+          database_connected: false,
+          processingSteps: [
+            'File uploaded and validated',
+            'File saved to disk',
+            'Database offline - metadata not stored'
+          ],
+          mlResults: {
+            confidenceScore: 0.0,
+            extractedTextPreview: 'Database offline - text extraction skipped',
+            classificationHints: {
+              needsOcr: ['pdf', 'jpg', 'jpeg', 'png', 'tiff'].includes(fileExtension),
+              needsThumbnail: file.type?.startsWith('image/') || file.type?.startsWith('video/'),
+              needsTextExtraction: !file.type?.startsWith('image/') && !file.type?.startsWith('video/') && !file.type?.startsWith('audio/')
+            }
+          },
+          thumbnailGenerated: false,
+          textExtracted: false,
+          embeddingsGenerated: false,
+          timestamp: new Date().toISOString()
+        });
       }
-    } catch (dbConnectionError) {
-      console.error('Database connection failed:', dbConnectionError);
-      databaseConnected = false;
-      // Create mock response for file-only upload
-      createdDocument = {
-        id: Date.now(), // Temporary ID
-        filename: file.name,
-        status: 'PENDING'
+
+      // Determine MIME type and classify department
+      const mimeType = file.type || 'application/octet-stream';
+      const classifiedDepartment = department || classifyDepartment(file.name);
+      
+      // Parse tags
+      const parsedTags = tags ? tags.split(',').map(tag => tag.trim()).filter(Boolean) : [];
+
+      // Generate metadata
+      const metadata = {
+        originalFilename: file.name,
+        uploadTimestamp: new Date().toISOString(),
+        fileSize: file.size,
+        channel: channel,
+        uploader: user.name || user.email,
+        fileExtension: fileExtension,
+        mimeType: mimeType,
+        userAgent: request.headers.get('user-agent'),
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+        processingHints: {
+          needsOcr: ['pdf', 'jpg', 'jpeg', 'png', 'tiff'].includes(fileExtension),
+          needsThumbnail: mimeType.startsWith('image/') || mimeType.startsWith('video/'),
+          needsTextExtraction: !mimeType.startsWith('image/') && !mimeType.startsWith('video/') && !mimeType.startsWith('audio/')
+        }
       };
+
+      // Create document record in database
+      createdDocument = await db.createDocument({
+        filename: file.name,
+        originalPath: filePath,
+        fileType: fileExtension,
+        mimeType: mimeType,
+        fileSize: BigInt(file.size),
+        channel: channel as any,
+        department: classifiedDepartment,
+        userId: user.id,
+        organizationId: organizationId || undefined,
+        folderId: folderId || undefined,
+        tags: parsedTags,
+        visibility: visibility as any,
+        metaData: metadata
+      });
+
+      console.log('Document created in database:', createdDocument.id);
+
+    } catch (dbError) {
+      console.error('Database error:', dbError);
+      // Return success response even if database storage fails
+      return NextResponse.json({
+        success: true,
+        filename: file.name,
+        fileSize: file.size,
+        mimeType: file.type,
+        status: 'FILE_ONLY',
+        message: 'File uploaded successfully (database error occurred)',
+        database_connected: false,
+        database_error: dbError instanceof Error ? dbError.message : 'Unknown database error',
+        processingSteps: [
+          'File uploaded and validated',
+          'File saved to disk',
+          'Database error - metadata not stored'
+        ],
+        mlResults: {
+          confidenceScore: 0.0,
+          extractedTextPreview: 'Database error - text extraction skipped',
+          classificationHints: {
+            needsOcr: ['pdf', 'jpg', 'jpeg', 'png', 'tiff'].includes(fileExtension),
+            needsThumbnail: file.type?.startsWith('image/') || file.type?.startsWith('video/'),
+            needsTextExtraction: !file.type?.startsWith('image/') && !file.type?.startsWith('video/') && !file.type?.startsWith('audio/')
+          }
+        },
+        thumbnailGenerated: false,
+        textExtracted: false,
+        embeddingsGenerated: false,
+        timestamp: new Date().toISOString()
+      });
     }
 
-    // Prepare success response
+    // Prepare response
     const processingResult = {
-      status: databaseConnected ? 'PENDING' : 'FILE_SAVED',
-      document_id: createdDocument.id,
+      success: true,
+      documentId: createdDocument.id,
       filename: file.name,
-      file_type: fileExtension,
-      file_size: file.size,
-      department: department || classifyDepartment(file.name),
-      channel: channel,
-      tags: tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [],
-      mime_type: file.type || 'application/octet-stream',
-      file_path: filePath,
-      database_connected: databaseConnected,
-      processing_steps: [
-        'File uploaded successfully',
-        databaseConnected ? 'Document record created in database' : 'File saved to disk (database offline)',
+      fileSize: file.size,
+      mimeType: file.type,
+      status: 'PENDING',
+      message: 'File uploaded successfully',
+      processingSteps: [
+        'File uploaded and validated',
         'Metadata extracted and stored',
-        databaseConnected ? 'Queued for processing' : 'Ready for processing when database reconnects'
+        'Queued for processing'
       ],
-      ml_results: {
-        confidence_score: 0.85,
-        extracted_text_preview: 'Document queued for text extraction...',
-        classification_hints: {
-          needs_ocr: ['PDF', 'JPG', 'JPEG', 'PNG', 'TIFF'].includes(fileExtension),
-          needs_thumbnail: file.type?.startsWith('image/') || file.type?.startsWith('video/'),
-          needs_text_extraction: !file.type?.startsWith('image/') && !file.type?.startsWith('video/') && !file.type?.startsWith('audio/')
+      mlResults: {
+        confidenceScore: 0.85,
+        extractedTextPreview: 'Document queued for text extraction...',
+        classificationHints: {
+          needsOcr: ['pdf', 'jpg', 'jpeg', 'png', 'tiff'].includes(fileExtension),
+          needsThumbnail: file.type?.startsWith('image/') || file.type?.startsWith('video/'),
+          needsTextExtraction: !file.type?.startsWith('image/') && !file.type?.startsWith('video/') && !file.type?.startsWith('audio/')
         }
       },
-      thumbnail_generated: false,
-      text_extracted: false,
-      warnings: databaseConnected ? [] : ['Database connection unavailable - file saved locally']
+      thumbnailGenerated: false,
+      textExtracted: false,
+      embeddingsGenerated: false,
+      timestamp: new Date().toISOString()
     };
 
     console.log('Upload completed successfully:', {
       documentId: createdDocument.id,
       filename: file.name,
-      databaseConnected
+      userId: user.id,
+      organizationId
     });
 
     return NextResponse.json(processingResult);
-    
-  } catch (error) {
+
+  } catch (error: any) {
     console.error('Upload error:', error);
     return NextResponse.json(
       { 
-        error: 'Upload failed', 
-        details: error instanceof Error ? error.message : 'Unknown error',
+        success: false,
+        error: 'Upload failed',
+        details: error.message,
         timestamp: new Date().toISOString()
       },
       { status: 500 }
@@ -270,6 +317,18 @@ export async function POST(request: NextRequest) {
 // Enhanced department classification function
 function classifyDepartment(filename: string): string {
   const lowerFilename = filename.toLowerCase();
+  
+  // Academic keywords (for educational institutions)
+  if (lowerFilename.includes('assignment') || 
+      lowerFilename.includes('homework') || 
+      lowerFilename.includes('thesis') ||
+      lowerFilename.includes('research') ||
+      lowerFilename.includes('paper') ||
+      lowerFilename.includes('study') ||
+      lowerFilename.includes('course') ||
+      lowerFilename.includes('lecture')) {
+    return 'ACADEMIC';
+  }
   
   // Engineering keywords
   if (lowerFilename.includes('engineering') || 
@@ -282,17 +341,26 @@ function classifyDepartment(filename: string): string {
     return 'ENGINEERING';
   }
   
-  // Procurement keywords
-  if (lowerFilename.includes('procurement') || 
-      lowerFilename.includes('purchase') || 
-      lowerFilename.includes('tender') ||
-      lowerFilename.includes('vendor') ||
-      lowerFilename.includes('supplier') ||
-      lowerFilename.includes('contract') ||
-      lowerFilename.includes('quotation') ||
-      lowerFilename.includes('po') ||
-      lowerFilename.includes('rfp')) {
-    return 'PROCUREMENT';
+  // Business/Marketing keywords
+  if (lowerFilename.includes('marketing') || 
+      lowerFilename.includes('campaign') || 
+      lowerFilename.includes('proposal') ||
+      lowerFilename.includes('presentation') ||
+      lowerFilename.includes('pitch') ||
+      lowerFilename.includes('strategy') ||
+      lowerFilename.includes('business')) {
+    return 'MARKETING';
+  }
+  
+  // Research keywords
+  if (lowerFilename.includes('research') || 
+      lowerFilename.includes('analysis') || 
+      lowerFilename.includes('data') ||
+      lowerFilename.includes('study') ||
+      lowerFilename.includes('survey') ||
+      lowerFilename.includes('experiment') ||
+      lowerFilename.includes('findings')) {
+    return 'RESEARCH';
   }
   
   // HR keywords
@@ -300,6 +368,7 @@ function classifyDepartment(filename: string): string {
       lowerFilename.includes('human') || 
       lowerFilename.includes('employee') ||
       lowerFilename.includes('resume') ||
+      lowerFilename.includes('cv') ||
       lowerFilename.includes('payroll') ||
       lowerFilename.includes('recruitment') ||
       lowerFilename.includes('policy') ||
@@ -321,15 +390,15 @@ function classifyDepartment(filename: string): string {
     return 'FINANCE';
   }
   
-  // Safety keywords
-  if (lowerFilename.includes('safety') || 
-      lowerFilename.includes('security') ||
-      lowerFilename.includes('incident') ||
-      lowerFilename.includes('hazard') ||
-      lowerFilename.includes('risk') ||
-      lowerFilename.includes('emergency') ||
-      lowerFilename.includes('protocol')) {
-    return 'SAFETY';
+  // Legal keywords
+  if (lowerFilename.includes('legal') || 
+      lowerFilename.includes('contract') ||
+      lowerFilename.includes('agreement') ||
+      lowerFilename.includes('mou') ||
+      lowerFilename.includes('nda') ||
+      lowerFilename.includes('litigation') ||
+      lowerFilename.includes('compliance')) {
+    return 'LEGAL';
   }
   
   // Operations keywords
@@ -342,28 +411,6 @@ function classifyDepartment(filename: string): string {
       lowerFilename.includes('monthly') ||
       lowerFilename.includes('service')) {
     return 'OPERATIONS';
-  }
-  
-  // Legal keywords
-  if (lowerFilename.includes('legal') || 
-      lowerFilename.includes('contract') ||
-      lowerFilename.includes('agreement') ||
-      lowerFilename.includes('mou') ||
-      lowerFilename.includes('nda') ||
-      lowerFilename.includes('litigation') ||
-      lowerFilename.includes('compliance')) {
-    return 'LEGAL';
-  }
-  
-  // Regulatory keywords
-  if (lowerFilename.includes('regulatory') || 
-      lowerFilename.includes('compliance') ||
-      lowerFilename.includes('permit') ||
-      lowerFilename.includes('license') ||
-      lowerFilename.includes('approval') ||
-      lowerFilename.includes('certification') ||
-      lowerFilename.includes('standard')) {
-    return 'REGULATORY';
   }
   
   return 'GENERAL';

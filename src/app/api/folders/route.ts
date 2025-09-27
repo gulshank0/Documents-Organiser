@@ -1,94 +1,116 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/database';
+import { createAuthenticatedHandler, getCurrentOrganization } from '@/lib/auth';
 
-export async function GET(request: NextRequest) {
+export const GET = createAuthenticatedHandler(async (request: NextRequest, user, authUser) => {
   try {
-    // For now, return mock folder structure since we need to implement folder methods in database
-    const mockFolders = [
-      {
-        id: 1,
-        name: 'Engineering',
-        parent_id: null,
-        children: [
-          {
-            id: 2,
-            name: 'Technical Drawings',
-            parent_id: 1,
-            children: [],
-            document_count: 15
-          },
-          {
-            id: 3,
-            name: 'Specifications',
-            parent_id: 1,
-            children: [],
-            document_count: 8
-          }
-        ],
-        document_count: 23
-      },
-      {
-        id: 4,
-        name: 'Procurement',
-        parent_id: null,
-        children: [
-          {
-            id: 5,
-            name: 'Contracts',
-            parent_id: 4,
-            children: [],
-            document_count: 12
-          }
-        ],
-        document_count: 12
-      },
-      {
-        id: 6,
-        name: 'Operations',
-        parent_id: null,
-        children: [],
-        document_count: 32
-      }
-    ];
+    const db = getDatabase();
+    const organizationId = getCurrentOrganization(user, request);
 
-    return NextResponse.json(mockFolders);
-  } catch (error) {
+    const folders = await db.getFolders(user.id, organizationId);
+
+    // Transform folders into tree structure
+    const folderTree = buildFolderTree(folders);
+
+    return NextResponse.json({
+      success: true,
+      data: folderTree,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error: any) {
     console.error('Folders API error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch folders' },
+      { 
+        success: false,
+        error: 'Failed to fetch folders',
+        details: error.message,
+        timestamp: new Date().toISOString()
+      },
       { status: 500 }
     );
   }
-}
+});
 
-export async function POST(request: NextRequest) {
+export const POST = createAuthenticatedHandler(async (request: NextRequest, user, authUser) => {
   try {
-    const { name, parent_id, color } = await request.json();
-
-    if (!name) {
+    const data = await request.json();
+    
+    // Validate required fields
+    if (!data.name) {
       return NextResponse.json(
-        { error: 'Folder name is required' },
+        { 
+          success: false, 
+          error: 'Folder name is required' 
+        },
         { status: 400 }
       );
     }
 
-    // TODO: Implement folder creation in database
-    const newFolder = {
-      id: Date.now(), // Temporary ID generation
-      name,
-      parent_id: parent_id || null,
-      color: color || null,
-      created_at: new Date().toISOString(),
-      document_count: 0,
-      children: []
-    };
+    const db = getDatabase();
+    const organizationId = getCurrentOrganization(user, request);
 
-    return NextResponse.json(newFolder, { status: 201 });
-  } catch (error) {
-    console.error('Create folder error:', error);
+    const folder = await db.createFolder({
+      name: data.name,
+      description: data.description,
+      userId: user.id,
+      organizationId,
+      parentId: data.parentId,
+      visibility: data.visibility || 'PRIVATE',
+      color: data.color
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: folder,
+      message: 'Folder created successfully',
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error: any) {
+    console.error('Error creating folder:', error);
     return NextResponse.json(
-      { error: 'Failed to create folder' },
+      { 
+        success: false,
+        error: 'Failed to create folder',
+        details: error.message,
+        timestamp: new Date().toISOString()
+      },
       { status: 500 }
     );
   }
+});
+
+// Helper function to build folder tree structure
+function buildFolderTree(folders: any[]): any[] {
+  const folderMap = new Map();
+  const rootFolders: any[] = [];
+
+  // Create a map of all folders
+  folders.forEach(folder => {
+    folderMap.set(folder.id, {
+      ...folder,
+      children: [],
+      documentCount: folder.documents?.length || 0
+    });
+  });
+
+  // Build the tree structure
+  folders.forEach(folder => {
+    const folderNode = folderMap.get(folder.id);
+    
+    if (folder.parentId) {
+      const parent = folderMap.get(folder.parentId);
+      if (parent) {
+        parent.children.push(folderNode);
+      } else {
+        // Parent not accessible, treat as root
+        rootFolders.push(folderNode);
+      }
+    } else {
+      rootFolders.push(folderNode);
+    }
+  });
+
+  return rootFolders;
 }

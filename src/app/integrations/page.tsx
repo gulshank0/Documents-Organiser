@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Navigation } from '@/components/ui/Navigation';
 import { DocumentIntegration, DOCUMENT_CHANNELS } from '@/types';
+type DocumentChannel = keyof typeof DOCUMENT_CHANNELS;
 import { getChannelIcon, getChannelColor, formatRelativeTime } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import {
@@ -44,14 +45,14 @@ export default function IntegrationsPage() {
       const response = await fetch('/api/integrations', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, is_active: !currentStatus })
+        body: JSON.stringify({ id, isActive: !currentStatus })
       });
 
       if (response.ok) {
         setIntegrations(prev => 
           prev.map(integration => 
-            integration.id === id 
-              ? { ...integration, is_active: !currentStatus }
+            integration.id === String(id) 
+              ? { ...integration, isActive: !currentStatus }
               : integration
           )
         );
@@ -93,7 +94,7 @@ export default function IntegrationsPage() {
     <div className="flex min-h-screen">
       <Navigation />
       <main className="flex-1 p-8">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-6xl mx-auto pt-16 px-4 sm:px-6 lg:px-8">
           {/* Header */}
           <div className="mb-8">
             <div className="flex justify-between items-center">
@@ -120,26 +121,26 @@ export default function IntegrationsPage() {
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center space-x-3">
                     <div className="text-3xl">
-                      {getChannelIcon(integration.type)}
+                      {getChannelIcon(integration.type === 'GMAIL' ? 'EMAIL' : integration.type as DocumentChannel)}
                     </div>
                     <div>
                       <h3 className="font-semibold text-foreground">{integration.name}</h3>
-                      <span className={`px-2 py-1 rounded-full text-xs ${getChannelColor(integration.type)}`}>
+                      <span className={`px-2 py-1 rounded-full text-xs ${getChannelColor(integration.type === 'GMAIL' ? 'EMAIL' : integration.type as DocumentChannel)}`}>
                         {integration.type.replace('_', ' ')}
                       </span>
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    {getStatusIcon(integration.is_active, integration.last_sync)}
+                    {getStatusIcon(integration.isActive, integration.lastSync)}
                     <button
-                      onClick={() => toggleIntegration(integration.id, integration.is_active)}
+                      onClick={() => toggleIntegration(integration.id, integration.isActive)}
                       className={`p-2 rounded-lg transition-colors ${
-                        integration.is_active
+                        integration.isActive
                           ? 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/30'
                           : 'bg-muted text-muted-foreground hover:bg-muted/80'
                       }`}
                     >
-                      {integration.is_active ? (
+                      {integration.isActive ? (
                         <PauseIcon className="w-4 h-4" />
                       ) : (
                         <PlayIcon className="w-4 h-4" />
@@ -151,15 +152,15 @@ export default function IntegrationsPage() {
                 <div className="space-y-2 text-sm text-muted-foreground">
                   <div className="flex justify-between">
                     <span>Status:</span>
-                    <span className={integration.is_active ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}>
-                      {integration.is_active ? 'Active' : 'Inactive'}
+                    <span className={integration.isActive ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}>
+                      {integration.isActive ? 'Active' : 'Inactive'}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Last Sync:</span>
                     <span>
-                      {integration.last_sync 
-                        ? formatRelativeTime(integration.last_sync)
+                      {integration.lastSync 
+                        ? formatRelativeTime(integration.lastSync)
                         : 'Never'
                       }
                     </span>
@@ -245,13 +246,13 @@ export default function IntegrationsPage() {
           <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="glass-card p-4 bg-green-50/50 dark:bg-green-900/10 border border-green-200/50 dark:border-green-800/30">
               <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                {integrations.filter(i => i.is_active).length}
+                {integrations.filter(i => i.isActive).length}
               </div>
               <div className="text-sm text-green-800 dark:text-green-300">Active Sources</div>
             </div>
             <div className="glass-card p-4 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-200/50 dark:border-blue-800/30">
               <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                {integrations.filter(i => i.last_sync).length}
+                {integrations.filter(i => i.lastSync).length}
               </div>
               <div className="text-sm text-blue-800 dark:text-blue-300">Synced Today</div>
             </div>
@@ -263,7 +264,7 @@ export default function IntegrationsPage() {
             </div>
             <div className="glass-card p-4 bg-orange-50/50 dark:bg-orange-900/10 border border-orange-200/50 dark:border-orange-800/30">
               <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-                {integrations.filter(i => !i.is_active).length}
+                {integrations.filter(i => !i.isActive).length}
               </div>
               <div className="text-sm text-orange-800 dark:text-orange-300">Inactive</div>
             </div>

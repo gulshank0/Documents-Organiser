@@ -46,8 +46,8 @@ export default function SearchPage() {
   return (
     <div className="flex min-h-screen">
       <Navigation />
-      <main className="flex-1 p-8">
-        <div className="max-w-4xl mx-auto">
+      <main className="flex-1 pt-16">
+        <div className="max-w-4xl mx-auto pt-16 px-4 sm:px-6 lg:px-8">
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-foreground">Search Documents</h1>
