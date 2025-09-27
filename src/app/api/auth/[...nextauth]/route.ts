@@ -189,7 +189,28 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id as string
         session.user.email = token.email as string
         session.user.name = token.name as string
-        session.user.image = token.picture as string
+        
+        // Fetch the latest user data from database to get current avatar
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: token.id as string },
+            select: {
+              avatar: true,
+              name: true,
+              email: true
+            }
+          })
+          
+          if (dbUser) {
+            session.user.image = dbUser.avatar
+            session.user.name = dbUser.name || token.name as string
+          } else {
+            session.user.image = token.picture as string
+          }
+        } catch (error) {
+          console.error('Error fetching user avatar:', error)
+          session.user.image = token.picture as string
+        }
       }
       return session
     },
