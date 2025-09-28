@@ -47,18 +47,49 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Fetch stats efficiently
-    const stats = await db.getDocumentStats();
+    // Get basic document statistics
+    const stats = await db.client.document.aggregate({
+      _count: { id: true },
+      _sum: { fileSize: true }
+    });
+
+    const statusCounts = await db.client.document.groupBy({
+      by: ['status'],
+      _count: true
+    });
+
+    const recentCount = await db.client.document.count({
+      where: {
+        createdAt: {
+          gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
+        }
+      }
+    });
+
+    const departmentCounts = await db.client.document.groupBy({
+      by: ['department'],
+      _count: true
+    });
+
+    // Transform the data to match expected format
+    const statusBreakdown = Object.fromEntries(
+      statusCounts.map(stat => [stat.status, stat._count])
+    );
+
+    const departmentStats = Object.fromEntries(
+      departmentCounts.map(stat => [stat.department || 'UNKNOWN', stat._count])
+    );
     
     const response = {
-      totalDocuments: stats.total_documents,
-      processingQueue: stats.by_status?.PROCESSING || 0,
-      documentsToday: stats.recent_24h,
-      averageProcessingTime: calculateAverageProcessingTime(stats),
-      systemHealth: determineSystemHealth(stats),
+      totalDocuments: stats._count.id || 0,
+      processingQueue: statusBreakdown['PROCESSING'] || 0,
+      documentsToday: recentCount,
+      averageProcessingTime: calculateAverageProcessingTime(statusBreakdown),
+      systemHealth: determineSystemHealth(statusBreakdown, stats._count.id || 0),
       activeConnections: 1,
-      departments: Object.keys(stats.by_department || {}),
-      statusBreakdown: stats.by_status || {},
+      departments: Object.keys(departmentStats),
+      statusBreakdown,
+      departmentStats: departmentStats,
       timestamp: new Date().toISOString()
     };
 
@@ -100,13 +131,12 @@ export async function GET(request: NextRequest) {
 }
 
 // Helper function to calculate average processing time
-function calculateAverageProcessingTime(stats: any): number {
-  const totalDocs = stats.total_documents;
+function calculateAverageProcessingTime(statusBreakdown: Record<string, number>): number {
+  const totalDocs = Object.values(statusBreakdown).reduce((sum, count) => sum + count, 0);
   if (totalDocs === 0) return 0;
   
-  // Simple estimation - in real implementation, you'd calculate from actual processing times
-  const processingDocs = stats.by_status?.PROCESSING || 0;
-  const completedDocs = stats.by_status?.PROCESSED || stats.by_status?.COMPLETED || 0;
+  const processingDocs = statusBreakdown['PROCESSING'] || 0;
+  const completedDocs = statusBreakdown['COMPLETED'] || 0;
   
   // Estimate based on processing load
   if (processingDocs > completedDocs * 0.1) {
@@ -117,12 +147,11 @@ function calculateAverageProcessingTime(stats: any): number {
 }
 
 // Helper function to determine system health
-function determineSystemHealth(stats: any): string {
-  const totalDocs = stats.total_documents;
-  const failedDocs = stats.by_status?.FAILED || 0;
-  const processingDocs = stats.by_status?.PROCESSING || 0;
-  
+function determineSystemHealth(statusBreakdown: Record<string, number>, totalDocs: number): string {
   if (totalDocs === 0) return 'idle';
+  
+  const failedDocs = statusBreakdown['FAILED'] || 0;
+  const processingDocs = statusBreakdown['PROCESSING'] || 0;
   
   const failureRate = failedDocs / totalDocs;
   const processingLoad = processingDocs / totalDocs;

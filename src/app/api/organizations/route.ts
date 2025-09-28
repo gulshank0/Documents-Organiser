@@ -1,26 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/database';
 import { createAuthenticatedHandler, createAuthenticatedAPIHandler } from '@/lib/auth';
-import { OrganizationType } from '@/types';
+import { OrganizationType } from '@prisma/client';
 
 // Get user's organizations
 export const GET = createAuthenticatedHandler(async (request: NextRequest, user, authUser) => {
   try {
     const db = getDatabase();
     
-    const organizations = await db.prisma.organizationMember.findMany({
-      where: { userId: user.id, isActive: true },
+    const memberships = await db.prisma.organizationMember.findMany({
+      where: { userId: user.id },
       include: {
         organization: {
           include: {
-            members: {
-              where: { isActive: true },
-              include: {
-                user: {
-                  select: { id: true, name: true, email: true, profession: true }
-                }
-              }
-            },
             _count: {
               select: {
                 documents: true,
@@ -29,11 +21,10 @@ export const GET = createAuthenticatedHandler(async (request: NextRequest, user,
             }
           }
         }
-      },
-      orderBy: { joinedAt: 'desc' }
+      }
     });
 
-    const formattedOrganizations = organizations.map(membership => ({
+    const formattedOrganizations = memberships.map(membership => ({
       ...membership.organization,
       membershipRole: membership.role,
       membershipJoinedAt: membership.joinedAt,
@@ -130,7 +121,6 @@ export const POST = createAuthenticatedHandler(async (request: NextRequest, user
     return NextResponse.json({
       success: true,
       data: organization,
-      message: 'Organization created successfully',
       timestamp: new Date().toISOString()
     });
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
+import { useSession, signIn, signOut, getSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,6 +41,7 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -91,7 +92,7 @@ export default function ProfilePage() {
     if (message) setMessage(null);
   };
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -112,12 +113,49 @@ export default function ProfilePage() {
     reader.onload = (event) => {
       const result = event.target?.result as string;
       setAvatarPreview(result);
-      setProfileData(prev => ({
-        ...prev,
-        avatar: result
-      }));
     };
     reader.readAsDataURL(file);
+
+    // Upload to Cloudinary via API
+    try {
+      setIsLoading(true);
+      const formData = new FormData();
+      formData.append('avatar', file);
+
+      const response = await fetch('/api/profile/avatar', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setProfileData(prev => ({
+          ...prev,
+          avatar: result.data.avatar
+        }));
+        setMessage({ type: 'success', text: 'Avatar updated successfully!' });
+        
+        // Update session data by refreshing
+        const newSession = await getSession();
+        if (newSession) {
+          // Force a page refresh to update the session context
+          window.location.reload();
+        }
+      } else {
+        throw new Error(result.error || 'Failed to upload avatar');
+      }
+    } catch (error) {
+      console.error('Avatar upload error:', error);
+      setMessage({ 
+        type: 'error', 
+        text: error instanceof Error ? error.message : 'Failed to upload avatar' 
+      });
+      // Reset preview on error
+      setAvatarPreview(null);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -150,8 +188,12 @@ export default function ProfilePage() {
 
       if (result.success) {
         setMessage({ type: 'success', text: 'Profile updated successfully!' });
-        // Optionally refresh the session to get updated data
-        // await update();
+        // Update session data by refreshing
+        const newSession = await getSession();
+        if (newSession) {
+          // Force a page refresh to update the session context
+          window.location.reload();
+        }
       } else {
         setMessage({ type: 'error', text: result.error || 'Failed to update profile' });
       }

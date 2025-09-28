@@ -134,7 +134,6 @@ export const POST = async (request: NextRequest) => {
       );
     }
 
-    // Use the singleton database instance
     const db = getDatabase();
 
     // Get user from database using email from session
@@ -161,12 +160,12 @@ export const POST = async (request: NextRequest) => {
 
     const data = await request.json();
     
-    // Validate required fields
-    if (!data.filename || !data.originalPath || !data.fileType || !data.mimeType) {
+    // Validate required fields including Cloudinary fields
+    if (!data.filename || !data.originalPath || !data.fileType || !data.mimeType || !data.cloudinaryUrl || !data.cloudinaryPublicId) {
       return NextResponse.json(
         { 
           success: false, 
-          error: 'Missing required fields: filename, originalPath, fileType, mimeType' 
+          error: 'Missing required fields: filename, originalPath, fileType, mimeType, cloudinaryUrl, cloudinaryPublicId' 
         },
         { status: 400 }
       );
@@ -177,6 +176,8 @@ export const POST = async (request: NextRequest) => {
     const document = await db.createDocument({
       filename: data.filename,
       originalPath: data.originalPath,
+      cloudinaryUrl: data.cloudinaryUrl,
+      cloudinaryPublicId: data.cloudinaryPublicId,
       fileType: data.fileType,
       mimeType: data.mimeType,
       fileSize: data.fileSize ? BigInt(data.fileSize) : undefined,
@@ -187,7 +188,9 @@ export const POST = async (request: NextRequest) => {
       folderId: data.folderId,
       tags: data.tags,
       visibility: data.visibility || 'PRIVATE',
-      metaData: data.metaData
+      metaData: data.metaData,
+      thumbnailPath: data.thumbnailPath,
+      thumbnailPublicId: data.thumbnailPublicId
     });
 
     return NextResponse.json({

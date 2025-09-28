@@ -785,8 +785,10 @@ function DashboardIntegrations() {
     )
   }
 
-  const activeIntegrations = integrations?.filter((int: any) => int.is_active) || []
-  const totalIntegrations = integrations?.length || 0
+  const activeIntegrations = Array.isArray(integrations) 
+    ? integrations.filter((int: any) => int.is_active) 
+    : []
+  const totalIntegrations = Array.isArray(integrations) ? integrations.length : 0
 
   return (
     <motion.div

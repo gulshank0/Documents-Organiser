@@ -11,7 +11,8 @@ model User {
   id               String               @id @default(cuid())
   email            String               @unique
   name             String?
-  avatar           String?
+  avatar           String?              // Now stores Cloudinary URL
+  avatarPublicId   String?              // Cloudinary public ID for avatar
   emailVerified    DateTime?
   password         String?
   createdAt        DateTime             @default(now())
@@ -31,6 +32,7 @@ model User {
   sessions         Session[]
   integrations     UserIntegration[]
   preferences      UserPreference?
+  auditLogs        AuditLog[]
 
   @@map("users")
 }
@@ -82,7 +84,8 @@ model Organization {
   name        String
   slug        String               @unique
   description String?
-  logo        String?
+  logo        String?              // Now stores Cloudinary URL
+  logoPublicId String?             // Cloudinary public ID for logo
   website     String?
   type        OrganizationType     @default(COMPANY)
   settings    Json?
@@ -112,36 +115,39 @@ model OrganizationMember {
 }
 
 model Document {
-  id             String              @id @default(cuid())
-  filename       String
-  originalPath   String
-  fileType       String
-  mimeType       String
-  fileSize       BigInt?
-  channel        DocumentChannel     @default(WEB_UPLOAD)
-  department     String?
-  extractedText  String?
-  metaData       Json?
-  tags           String[]            @default([])
-  userId         String
-  organizationId String?
-  visibility     DocumentVisibility  @default(PRIVATE)
-  status         DocumentStatus      @default(PENDING)
-  errorMessage   String?
-  thumbnailPath  String?
-  downloadCount  Int                 @default(0)
-  isFavorite     Boolean             @default(false)
-  uploadedAt     DateTime            @default(now())
-  processedAt    DateTime?
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
-  folderId       String?
-  embeddings     DocumentEmbedding[]
-  shares         DocumentShare[]
-  versions       DocumentVersion[]
-  folder         Folder?             @relation(fields: [folderId], references: [id])
-  organization   Organization?       @relation(fields: [organizationId], references: [id])
-  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id               String              @id @default(cuid())
+  filename         String
+  originalPath     String              // Now stores Cloudinary URL
+  cloudinaryUrl    String?             // Cloudinary secure URL
+  cloudinaryPublicId String?           // Cloudinary public ID for file operations
+  fileType         String
+  mimeType         String
+  fileSize         BigInt?
+  channel          DocumentChannel     @default(WEB_UPLOAD)
+  department       String?
+  extractedText    String?
+  metaData         Json?
+  tags             String[]            @default([])
+  userId           String
+  organizationId   String?
+  visibility       DocumentVisibility  @default(PRIVATE)
+  status           DocumentStatus      @default(PENDING)
+  errorMessage     String?
+  thumbnailPath    String?             // Now stores Cloudinary thumbnail URL
+  thumbnailPublicId String?            // Cloudinary public ID for thumbnail
+  downloadCount    Int                 @default(0)
+  isFavorite       Boolean             @default(false)
+  uploadedAt       DateTime            @default(now())
+  processedAt      DateTime?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  folderId         String?
+  embeddings       DocumentEmbedding[]
+  shares           DocumentShare[]
+  versions         DocumentVersion[]
+  folder           Folder?             @relation(fields: [folderId], references: [id])
+  organization     Organization?       @relation(fields: [organizationId], references: [id])
+  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("documents")
 }
@@ -223,6 +229,7 @@ model UserIntegration {
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
   user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobs         IntegrationJob[]
 
   @@unique([userId, type])
   @@map("user_integrations")
@@ -259,6 +266,46 @@ model ProcessingQueue {
   @@map("processing_queue")
 }
 
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  action     String
+  resource   String
+  resourceId String?
+  details    Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}
+
+model IntegrationJob {
+  id             String   @id @default(cuid())
+  integrationId  String
+  jobType        String   // 'SYNC', 'WEBHOOK', 'OAUTH_REFRESH'
+  status         String   @default("PENDING") // 'PENDING', 'RUNNING', 'COMPLETED', 'FAILED'
+  priority       Int      @default(5)
+  scheduledAt    DateTime @default(now())
+  startedAt      DateTime?
+  completedAt    DateTime?
+  attempts       Int      @default(0)
+  maxAttempts    Int      @default(3)
+  data           Json?
+  result         Json?
+  error          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  integration    UserIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@index([status, scheduledAt])
+  @@index([integrationId, createdAt])
+  @@map("integration_jobs")
+}
+
 enum UserType {
   INDIVIDUAL
   ORGANIZATION
@@ -285,6 +332,7 @@ enum DocumentChannel {
   WEB_UPLOAD
   EMAIL
   WHATSAPP
+  TELEGRAM
   SHAREPOINT
   FILE_SYSTEM
   DROPBOX
@@ -329,5 +377,6 @@ enum IntegrationType {
   SLACK
   TEAMS
   WHATSAPP
+  TELEGRAM
   OUTLOOK
 }

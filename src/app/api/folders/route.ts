@@ -7,7 +7,7 @@ export const GET = createAuthenticatedHandler(async (request: NextRequest, user,
     const db = getDatabase();
     const organizationId = getCurrentOrganization(user, request);
 
-    const folders = await db.getFolders(user.id, organizationId);
+    const folders = await db.getFolders(user.id, organizationId || undefined);
 
     // Transform folders into tree structure
     const folderTree = buildFolderTree(folders);
@@ -54,7 +54,7 @@ export const POST = createAuthenticatedHandler(async (request: NextRequest, user
       name: data.name,
       description: data.description,
       userId: user.id,
-      organizationId,
+      organizationId: organizationId || undefined,
       parentId: data.parentId,
       visibility: data.visibility || 'PRIVATE',
       color: data.color

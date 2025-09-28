@@ -52,37 +52,49 @@ const customPrismaAdapter = (prisma: PrismaClient) => {
       }
       
       console.log('User created successfully:', user)
-      return user
+      
+      // Return AdapterUser compatible object
+      return {
+        id: user.id,
+        email: user.email,
+        name: user.name || undefined,
+        image: user.avatar || undefined,
+        emailVerified: user.emailVerified
+      }
     },
     
     getUser: async (id: string) => {
       const user = await prisma.user.findUnique({
-        where: { id },
-        include: {
-          preferences: true,
-          organizations: {
-            include: {
-              organization: true
-            }
-          }
-        }
+        where: { id }
       })
-      return user
+      
+      if (!user) return null
+      
+      // Return AdapterUser compatible object
+      return {
+        id: user.id,
+        email: user.email,
+        name: user.name || undefined,
+        image: user.avatar || undefined,
+        emailVerified: user.emailVerified
+      }
     },
     
     getUserByEmail: async (email: string) => {
       const user = await prisma.user.findUnique({
-        where: { email },
-        include: {
-          preferences: true,
-          organizations: {
-            include: {
-              organization: true
-            }
-          }
-        }
+        where: { email }
       })
-      return user
+      
+      if (!user) return null
+      
+      // Return AdapterUser compatible object
+      return {
+        id: user.id,
+        email: user.email,
+        name: user.name || undefined,
+        image: user.avatar || undefined,
+        emailVerified: user.emailVerified
+      }
     },
     
     updateUser: async (data: any) => {
@@ -101,7 +113,15 @@ const customPrismaAdapter = (prisma: PrismaClient) => {
           updatedAt: new Date(),
         }
       })
-      return user
+      
+      // Return AdapterUser compatible object
+      return {
+        id: user.id,
+        email: user.email,
+        name: user.name || undefined,
+        image: user.avatar || undefined,
+        emailVerified: user.emailVerified
+      }
     }
   }
 }
@@ -202,7 +222,7 @@ export const authOptions: NextAuthOptions = {
           })
           
           if (dbUser) {
-            session.user.image = dbUser.avatar
+            session.user.image = dbUser.avatar || undefined
             session.user.name = dbUser.name || token.name as string
           } else {
             session.user.image = token.picture as string

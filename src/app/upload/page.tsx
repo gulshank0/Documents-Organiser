@@ -12,8 +12,22 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   FolderIcon,
-  TagIcon
+  TagIcon,
+  ChevronRightIcon,
+  HomeIcon,
+  EyeIcon,
+  FolderOpenIcon,
+  ArrowLeftIcon,
+  Squares2X2Icon,
+  ListBulletIcon
 } from '@heroicons/react/24/outline';
+
+interface FolderBrowseMode {
+  isActive: boolean;
+  currentFolder: FolderTreeItem | null;
+  breadcrumb: FolderTreeItem[];
+  viewMode: 'grid' | 'list';
+}
 
 export default function UploadPage() {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
@@ -22,6 +36,14 @@ export default function UploadPage() {
   const [tags, setTags] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
   const [folders, setFolders] = useState<FolderTreeItem[]>([]);
+  
+  // Folder browsing state
+  const [folderBrowse, setFolderBrowse] = useState<FolderBrowseMode>({
+    isActive: false,
+    currentFolder: null,
+    breadcrumb: [],
+    viewMode: 'grid'
+  });
 
   // Fetch available folders
   useEffect(() => {
@@ -32,9 +54,8 @@ export default function UploadPage() {
     try {
       const response = await fetch('/api/folders');
       if (response.ok) {
-        const data = await response.json();
-        // Ensure data is an array before setting it
-        setFolders(Array.isArray(data) ? data : []);
+        const result = await response.json();
+        setFolders(Array.isArray(result.data) ? result.data : []);
       } else {
         console.error('Failed to fetch folders:', response.statusText);
         setFolders([]);
@@ -45,66 +66,99 @@ export default function UploadPage() {
     }
   };
 
+  // Folder browsing functions
+  const handleShowFolders = () => {
+    setFolderBrowse(prev => ({
+      ...prev,
+      isActive: true,
+      currentFolder: null,
+      breadcrumb: []
+    }));
+  };
+
+  const handleFolderClick = (folder: FolderTreeItem) => {
+    const newBreadcrumb = [...folderBrowse.breadcrumb, folder];
+    setFolderBrowse(prev => ({
+      ...prev,
+      currentFolder: folder,
+      breadcrumb: newBreadcrumb
+    }));
+    setSelectedFolder(parseInt(folder.id));
+  };
+
+  const handleExitFolderBrowse = () => {
+    setFolderBrowse({
+      isActive: false,
+      currentFolder: null,
+      breadcrumb: [],
+      viewMode: 'grid'
+    });
+  };
+
+  const handleBreadcrumbClick = (index: number) => {
+    if (index === -1) {
+      // Clicked on "All Folders"
+      setFolderBrowse(prev => ({
+        ...prev,
+        currentFolder: null,
+        breadcrumb: []
+      }));
+      setSelectedFolder(null);
+    } else {
+      const newBreadcrumb = folderBrowse.breadcrumb.slice(0, index + 1);
+      const targetFolder = newBreadcrumb[index];
+      
+      setFolderBrowse(prev => ({
+        ...prev,
+        currentFolder: targetFolder,
+        breadcrumb: newBreadcrumb
+      }));
+      
+      setSelectedFolder(parseInt(targetFolder.id));
+    }
+  };
+
+  // Get folders to display based on current folder
+  const getCurrentFolders = (): FolderTreeItem[] => {
+    if (!folderBrowse.currentFolder) {
+      return folders; // Show root folders
+    }
+    return folderBrowse.currentFolder.children || [];
+  };
+
+  // Flatten folders for dropdown (existing functionality)
+  const flattenFolders = (folders: FolderTreeItem[], level = 0): any[] => {
+    if (!Array.isArray(folders)) return [];
+    
+    return folders.reduce((acc, folder) => {
+      if (folder?.id && folder?.name) {
+        acc.push({
+          id: folder.id,
+          name: '  '.repeat(level) + folder.name,
+          documentCount: folder.documentCount || 0
+        });
+        
+        if (Array.isArray(folder.children) && folder.children.length > 0) {
+          acc.push(...flattenFolders(folder.children, level + 1));
+        }
+      }
+      return acc;
+    }, [] as any[]);
+  };
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: {
-      // Documents
       'application/pdf': ['.pdf'],
       'application/msword': ['.doc'],
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
       'text/plain': ['.txt'],
       'application/rtf': ['.rtf'],
-      'application/vnd.oasis.opendocument.text': ['.odt'],
-      
-      // Spreadsheets
-      'application/vnd.ms-excel': ['.xls'],
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
-      'text/csv': ['.csv'],
-      'application/vnd.oasis.opendocument.spreadsheet': ['.ods'],
-      
-      // Presentations
-      'application/vnd.ms-powerpoint': ['.ppt'],
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
-      'application/vnd.oasis.opendocument.presentation': ['.odp'],
-      
-      // Images
       'image/jpeg': ['.jpg', '.jpeg'],
       'image/png': ['.png'],
       'image/gif': ['.gif'],
-      'image/bmp': ['.bmp'],
-      'image/tiff': ['.tiff'],
-      'image/svg+xml': ['.svg'],
-      'image/webp': ['.webp'],
-      
-      // Videos
       'video/mp4': ['.mp4'],
-      'video/avi': ['.avi'],
-      'video/quicktime': ['.mov'],
-      'video/x-ms-wmv': ['.wmv'],
-      'video/x-flv': ['.flv'],
-      'video/x-matroska': ['.mkv'],
-      'video/webm': ['.webm'],
-      
-      // Audio
       'audio/mpeg': ['.mp3'],
-      'audio/wav': ['.wav'],
-      'audio/aac': ['.aac'],
-      'audio/ogg': ['.ogg'],
-      'audio/flac': ['.flac'],
-      
-      // Archives
-      'application/zip': ['.zip'],
-      'application/x-rar-compressed': ['.rar'],
-      'application/x-7z-compressed': ['.7z'],
-      'application/x-tar': ['.tar'],
-      'application/gzip': ['.gz'],
-      
-      // Other
-      'application/json': ['.json'],
-      'application/xml': ['.xml'],
-      'text/html': ['.html'],
-      'text/css': ['.css'],
-      'application/javascript': ['.js'],
-      'application/typescript': ['.ts']
+      'application/zip': ['.zip']
     },
     maxSize: 100 * 1024 * 1024, // 100MB
     onDrop: (acceptedFiles, rejectedFiles) => {
@@ -145,8 +199,6 @@ export default function UploadPage() {
     );
 
     try {
-      console.log('Starting upload for:', fileItem.file.name);
-      
       // Simulate upload progress
       const progressInterval = setInterval(() => {
         setUploadedFiles(prev => 
@@ -165,11 +217,8 @@ export default function UploadPage() {
 
       clearInterval(progressInterval);
 
-      console.log('Upload response status:', response.status);
-
       if (response.ok) {
         const result = await response.json();
-        console.log('Upload successful:', result);
         
         setUploadedFiles(prev => 
           prev.map((item, i) => 
@@ -179,27 +228,18 @@ export default function UploadPage() {
           )
         );
         
-        // Show different messages based on database connection status
-        if (result.database_connected) {
-          toast.success(`${fileItem.file.name} uploaded and saved to database!`);
-        } else {
-          toast.success(`${fileItem.file.name} uploaded successfully! (Database offline - file saved locally)`);
-        }
+        toast.success(`${fileItem.file.name} uploaded successfully!`);
       } else {
         let errorMessage = 'Upload failed';
         try {
           const errorData = await response.json();
           errorMessage = errorData.error || errorData.details || 'Unknown error occurred';
-          console.error('Upload error details:', errorData);
         } catch (parseError) {
-          console.error('Failed to parse error response:', parseError);
           errorMessage = `HTTP ${response.status}: ${response.statusText}`;
         }
         throw new Error(errorMessage);
       }
     } catch (error) {
-      console.error('Upload failed for:', fileItem.file.name, error);
-      
       const errorMessage = error instanceof Error ? error.message : 'Upload failed';
       
       setUploadedFiles(prev => 
@@ -248,21 +288,219 @@ export default function UploadPage() {
     }
   };
 
-  const renderFolderOptions = (folders: FolderTreeItem[], level = 0): React.ReactElement[] => {
-    // Safety check: ensure folders is an array and filter out invalid entries
-    if (!Array.isArray(folders)) {
-      return [];
-    }
+  const renderFolderOptions = (): React.ReactElement[] => {
+    const flatFolders = flattenFolders(folders);
+    return flatFolders.map(folder => (
+      <option key={folder.id} value={folder.id}>
+        {folder.name} ({folder.documentCount})
+      </option>
+    ));
+  };
 
-    return folders
-      .filter(folder => folder?.id && folder?.name) // Use optional chaining
-      .flatMap(folder => [
-        <option key={folder.id} value={folder.id}>
-          {'  '.repeat(level) + folder.name} ({folder.documentCount || 0})
-        </option>,
-        // Recursively render children, ensuring children is an array
-        ...renderFolderOptions(Array.isArray(folder.children) ? folder.children : [], level + 1)
-      ]);
+  // Render folder browsing interface
+  const renderFolderBrowser = () => {
+    const currentFolders = getCurrentFolders();
+    
+    return (
+      <div className="glass-card p-6 mb-8 bg-card/50 border border-border/50">
+        {/* Browser Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={handleExitFolderBrowse}
+              className="inline-flex items-center px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ArrowLeftIcon className="w-4 h-4 mr-2" />
+              Back to Upload
+            </button>
+            
+            <div className="h-6 w-px bg-border"></div>
+            
+            <h3 className="text-lg font-semibold text-foreground">Browse Folders</h3>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <div className="flex rounded-lg border border-input bg-background">
+              <button
+                onClick={() => setFolderBrowse(prev => ({ ...prev, viewMode: 'grid' }))}
+                className={`p-2 rounded-l-lg transition-colors ${
+                  folderBrowse.viewMode === 'grid' 
+                    ? 'bg-primary text-primary-foreground' 
+                    : 'hover:bg-accent'
+                }`}
+              >
+                <Squares2X2Icon className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setFolderBrowse(prev => ({ ...prev, viewMode: 'list' }))}
+                className={`p-2 rounded-r-lg transition-colors ${
+                  folderBrowse.viewMode === 'list' 
+                    ? 'bg-primary text-primary-foreground' 
+                    : 'hover:bg-accent'
+                }`}
+              >
+                <ListBulletIcon className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Breadcrumb Navigation */}
+        <div className="flex items-center space-x-2 mb-6 text-sm">
+          <button
+            onClick={() => handleBreadcrumbClick(-1)}
+            className={`flex items-center px-3 py-1 rounded-md transition-colors ${
+              !folderBrowse.currentFolder 
+                ? 'bg-primary/10 text-primary' 
+                : 'hover:bg-accent text-muted-foreground'
+            }`}
+          >
+            <HomeIcon className="w-4 h-4 mr-1" />
+            All Folders
+          </button>
+          
+          {folderBrowse.breadcrumb.map((folder, index) => (
+            <div key={folder.id} className="flex items-center">
+              <ChevronRightIcon className="w-4 h-4 text-muted-foreground mx-1" />
+              <button
+                onClick={() => handleBreadcrumbClick(index)}
+                className={`flex items-center px-3 py-1 rounded-md transition-colors ${
+                  index === folderBrowse.breadcrumb.length - 1
+                    ? 'bg-primary/10 text-primary'
+                    : 'hover:bg-accent text-muted-foreground'
+                }`}
+                style={{ color: folder.color }}
+              >
+                <FolderIcon className="w-4 h-4 mr-1" />
+                {folder.name}
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {/* Current Folder Info */}
+        {folderBrowse.currentFolder && (
+          <div className="mb-6 p-4 rounded-lg border border-border/50 bg-muted/20">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div 
+                  className="w-10 h-10 rounded-lg flex items-center justify-center"
+                  style={{ backgroundColor: folderBrowse.currentFolder.color || '#3B82F6' }}
+                >
+                  <FolderOpenIcon className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h4 className="font-medium text-foreground">{folderBrowse.currentFolder.name}</h4>
+                  <p className="text-sm text-muted-foreground">
+                    {folderBrowse.currentFolder.documentCount || 0} documents
+                    {currentFolders.length > 0 && ` • ${currentFolders.length} subfolders`}
+                  </p>
+                </div>
+              </div>
+              <span className="text-xs px-2 py-1 bg-green-100 text-green-800 rounded-full dark:bg-green-900/20 dark:text-green-400">
+                📁 Selected for Upload
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Folders Display */}
+        {currentFolders.length > 0 ? (
+          <div className={folderBrowse.viewMode === 'grid' 
+            ? 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4'
+            : 'space-y-2'
+          }>
+            {currentFolders.map((folder) => (
+              <div
+                key={folder.id}
+                onClick={() => handleFolderClick(folder)}
+                className={`cursor-pointer transition-all duration-200 hover:scale-105 ${
+                  folderBrowse.viewMode === 'grid'
+                    ? 'p-4 rounded-lg border border-border/50 hover:border-border hover:shadow-md bg-card/30'
+                    : 'flex items-center p-3 rounded-lg hover:bg-accent/50'
+                }`}
+              >
+                {folderBrowse.viewMode === 'grid' ? (
+                  <div className="text-center">
+                    <div 
+                      className="w-12 h-12 mx-auto mb-3 rounded-lg flex items-center justify-center"
+                      style={{ backgroundColor: folder.color || '#3B82F6' }}
+                    >
+                      <FolderIcon className="w-6 h-6 text-white" />
+                    </div>
+                    <h4 className="font-medium text-foreground truncate">{folder.name}</h4>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {folder.documentCount || 0} documents
+                    </p>
+                    <div className="flex items-center justify-center mt-2 space-x-2">
+                      {folder.visibility === 'PRIVATE' ? (
+                        <span className="text-xs">🔒</span>
+                      ) : folder.visibility === 'ORGANIZATION' ? (
+                        <span className="text-xs">🏢</span>
+                      ) : (
+                        <span className="text-xs">👥</span>
+                      )}
+                      {(folder.children && folder.children.length > 0) && (
+                        <span className="text-xs text-muted-foreground">
+                          +{folder.children.length}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center flex-1">
+                    <div 
+                      className="w-8 h-8 rounded-md flex items-center justify-center mr-3"
+                      style={{ backgroundColor: folder.color || '#3B82F6' }}
+                    >
+                      <FolderIcon className="w-4 h-4 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-medium text-foreground">{folder.name}</h4>
+                      <p className="text-xs text-muted-foreground">
+                        {folder.documentCount || 0} documents
+                        {(folder.children && folder.children.length > 0) && ` • ${folder.children.length} subfolders`}
+                      </p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {folder.visibility === 'PRIVATE' ? (
+                        <span title="Private">🔒</span>
+                      ) : folder.visibility === 'ORGANIZATION' ? (
+                        <span title="Organization">🏢</span>
+                      ) : (
+                        <span title="Shared">👥</span>
+                      )}
+                      <ChevronRightIcon className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <FolderIcon className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-foreground mb-2">
+              {folderBrowse.currentFolder ? 'No Subfolders' : 'No Folders Found'}
+            </h3>
+            <p className="text-muted-foreground mb-4">
+              {folderBrowse.currentFolder 
+                ? 'This folder doesn\'t contain any subfolders. You can upload files directly here.'
+                : 'Create your first folder to organize your documents.'
+              }
+            </p>
+            {folderBrowse.currentFolder && (
+              <button
+                onClick={handleExitFolderBrowse}
+                className="inline-flex items-center justify-center rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 transition-colors"
+              >
+                Start Uploading to This Folder
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -292,103 +530,144 @@ export default function UploadPage() {
             </div>
           </div>
 
-          {/* Upload Configuration */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            {/* Department Selection */}
-            <div className="glass-card p-6 bg-card/50 border border-border/50">
-              <label className="block text-sm font-medium text-foreground mb-2">
-                <TagIcon className="w-4 h-4 inline mr-1" />
-                Department (Optional)
-              </label>
-              <select
-                value={selectedDepartment}
-                onChange={(e) => setSelectedDepartment(e.target.value)}
-                className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="">Auto-detect department</option>
-                {DEPARTMENTS.map(dept => (
-                  <option key={dept} value={dept}>{dept}</option>
-                ))}
-              </select>
-              <p className="text-xs text-muted-foreground mt-1">
-                AI will automatically classify if not selected
-              </p>
-            </div>
-
-            {/* Folder Selection */}
-            <div className="glass-card p-6 bg-card/50 border border-border/50">
-              <label className="block text-sm font-medium text-foreground mb-2">
-                <FolderIcon className="w-4 h-4 inline mr-1" />
-                Folder (Optional)
-              </label>
-              <select
-                value={selectedFolder || ''}
-                onChange={(e) => setSelectedFolder(e.target.value ? parseInt(e.target.value) : null)}
-                className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="">Root folder</option>
-                {renderFolderOptions(folders)}
-              </select>
-              <p className="text-xs text-muted-foreground mt-1">
-                Organize documents in folders
-              </p>
-            </div>
-
-            {/* Tags */}
-            <div className="glass-card p-6 bg-card/50 border border-border/50">
-              <label className="block text-sm font-medium text-foreground mb-2">
-                <TagIcon className="w-4 h-4 inline mr-1" />
-                Tags (Optional)
-              </label>
-              <input
-                type="text"
-                value={tags}
-                onChange={(e) => setTags(e.target.value)}
-                placeholder="tag1, tag2, tag3"
-                className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Comma-separated tags for better organization
-              </p>
-            </div>
-          </div>
-
-          {/* Upload Area */}
-          <div className="glass-card p-6 mb-8 bg-card/50 border border-border/50">
-            <div
-              {...getRootProps()}
-              className={`border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors ${
-                isDragActive
-                  ? 'border-primary bg-primary/10'
-                  : 'border-border hover:border-border/70'
-              }`}
-            >
-              <input {...getInputProps()} />
-              <CloudArrowUpIcon className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-              {isDragActive ? (
-                <p className="text-lg text-primary">Drop files here...</p>
-              ) : (
-                <div>
-                  <p className="text-lg text-foreground mb-2">
-                    Drag & drop files here, or click to select
+          {/* Show folder browser if active */}
+          {folderBrowse.isActive ? (
+            renderFolderBrowser()
+          ) : (
+            <>
+              {/* Upload Configuration */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                {/* Department Selection */}
+                <div className="glass-card p-6 bg-card/50 border border-border/50">
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    <TagIcon className="w-4 h-4 inline mr-1" />
+                    Department (Optional)
+                  </label>
+                  <select
+                    value={selectedDepartment}
+                    onChange={(e) => setSelectedDepartment(e.target.value)}
+                    className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <option value="">Auto-detect department</option>
+                    {DEPARTMENTS.map(dept => (
+                      <option key={dept} value={dept}>{dept}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    AI will automatically classify if not selected
                   </p>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Supports {SUPPORTED_FILE_TYPES.length}+ file types (max 100MB each)
+                </div>
+
+                {/* Folder Selection */}
+                <div className="glass-card p-6 bg-card/50 border border-border/50">
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    <FolderIcon className="w-4 h-4 inline mr-1" />
+                    Folder (Optional)
+                  </label>
+                  <div className="space-y-2">
+                    <select
+                      value={selectedFolder || ''}
+                      onChange={(e) => setSelectedFolder(e.target.value ? parseInt(e.target.value) : null)}
+                      className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <option value="">Root folder</option>
+                      {renderFolderOptions()}
+                    </select>
+                    <button
+                      onClick={handleShowFolders}
+                      className="w-full inline-flex items-center justify-center rounded-lg text-sm font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/40 px-3 py-2 transition-colors"
+                    >
+                      <EyeIcon className="w-4 h-4 mr-2" />
+                      Browse Folders
+                    </button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Organize documents in folders
                   </p>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-muted-foreground/80">
-                    <div>📄 Documents</div>
-                    <div>📊 Spreadsheets</div>
-                    <div>📽️ Presentations</div>
-                    <div>🖼️ Images</div>
-                    <div>🎥 Videos</div>
-                    <div>🎵 Audio</div>
-                    <div>📦 Archives</div>
-                    <div>💻 Code Files</div>
+                </div>
+
+                {/* Tags */}
+                <div className="glass-card p-6 bg-card/50 border border-border/50">
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    <TagIcon className="w-4 h-4 inline mr-1" />
+                    Tags (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={tags}
+                    onChange={(e) => setTags(e.target.value)}
+                    placeholder="tag1, tag2, tag3"
+                    className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Comma-separated tags for better organization
+                  </p>
+                </div>
+              </div>
+
+              {/* Selected Folder Display */}
+              {selectedFolder && (
+                <div className="mb-6 p-4 rounded-lg border border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/20">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center">
+                      <FolderIcon className="w-4 h-4 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-green-800 dark:text-green-200">
+                        📁 Uploading to: {folders.find(f => f.id === selectedFolder.toString())?.name || 'Selected Folder'}
+                      </p>
+                      <p className="text-xs text-green-600 dark:text-green-400">
+                        Files will be organized in this folder
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setSelectedFolder(null)}
+                      className="ml-auto text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-200"
+                    >
+                      <XCircleIcon className="w-5 h-5" />
+                    </button>
                   </div>
                 </div>
               )}
-            </div>
-          </div>
+
+              {/* Upload Area */}
+              <div className="glass-card p-6 mb-8 bg-card/50 border border-border/50">
+                <div
+                  {...getRootProps()}
+                  className={`border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors ${
+                    isDragActive
+                      ? 'border-primary bg-primary/10'
+                      : 'border-border hover:border-border/70'
+                  }`}
+                >
+                  <input {...getInputProps()} />
+                  <CloudArrowUpIcon className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                  {isDragActive ? (
+                    <p className="text-lg text-primary">Drop files here...</p>
+                  ) : (
+                    <div>
+                      <p className="text-lg text-foreground mb-2">
+                        Drag & drop files here, or click to select
+                      </p>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Supports {SUPPORTED_FILE_TYPES.length}+ file types (max 100MB each)
+                      </p>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-muted-foreground/80">
+                        <div>📄 Documents</div>
+                        <div>📊 Spreadsheets</div>
+                        <div>📽️ Presentations</div>
+                        <div>🖼️ Images</div>
+                        <div>🎥 Videos</div>
+                        <div>🎵 Audio</div>
+                        <div>📦 Archives</div>
+                        <div>💻 Code Files</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
 
           {/* File List */}
           {uploadedFiles.length > 0 && (
@@ -480,7 +759,7 @@ export default function UploadPage() {
                       {/* Success Info */}
                       {fileItem.status === 'completed' && fileItem.result && (
                         <div className="mt-2 text-xs text-green-600 dark:text-green-400">
-                          ✓ Uploaded successfully • ID: {fileItem.result.documentId} • Processing: {fileItem.result.status}
+                          ✓ Uploaded successfully • Processing: {fileItem.result.status}
                         </div>
                       )}
                     </div>
@@ -494,36 +773,6 @@ export default function UploadPage() {
                     </button>
                   </div>
                 ))}
-              </div>
-
-              {/* Upload Statistics */}
-              <div className="mt-6 pt-4 border-t border-border/50">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div className="text-center">
-                    <div className="text-lg font-semibold text-foreground">
-                      {uploadedFiles.filter(f => f.status === 'pending').length}
-                    </div>
-                    <div className="text-muted-foreground">Pending</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-semibold text-blue-600 dark:text-blue-400">
-                      {uploadedFiles.filter(f => f.status === 'uploading').length}
-                    </div>
-                    <div className="text-muted-foreground">Uploading</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-semibold text-green-600 dark:text-green-400">
-                      {uploadedFiles.filter(f => f.status === 'completed').length}
-                    </div>
-                    <div className="text-muted-foreground">Completed</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-semibold text-red-600 dark:text-red-400">
-                      {uploadedFiles.filter(f => f.status === 'failed').length}
-                    </div>
-                    <div className="text-muted-foreground">Failed</div>
-                  </div>
-                </div>
               </div>
             </div>
           )}

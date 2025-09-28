@@ -15,8 +15,8 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: 'S-Documents Dashboard',
-    template: '%s | S-Documents Dashboard'
+    default: 'S-Docs',
+    template: '%s | S-Docs'
   },
   description: 'Knowledge Management and Resource Library',
   keywords: ['S-Documents', 'document management', 'AI', 'OCR', 'compliance', 'Notes','notes', 'Kerala'],
@@ -24,12 +24,17 @@ export const metadata: Metadata = {
   creator: 'Gulshan Kumar',
   publisher: 'Kochi Metro Rail Limited',
   robots: 'noindex, nofollow', // Private system
+  icons: {
+    icon: '/logo.png',
+    shortcut: '/logo.png',
+    apple: '/logo.png',
+  },
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    title: 'S-Documents Dashboard',
+    title: 'S-Docs',
     description: 'Knowledge Management and Resource Library',
-    siteName: 'S-Documents Dashboard',
+    siteName: 'S-Docs',
   },
 }
 

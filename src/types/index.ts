@@ -359,6 +359,7 @@ export const DOCUMENT_CHANNELS = [
   'WEB_UPLOAD',
   'EMAIL',
   'WHATSAPP',
+  'TELEGRAM',
   'SHAREPOINT',
   'FILE_SYSTEM',
   'DROPBOX',
