@@ -11,42 +11,94 @@ const prisma = new PrismaClient();
 
 export async function POST(request: NextRequest) {
   try {
-    // Use NextAuth for authentication
-    const session = await getServerSession(authOptions);
+    console.log('Upload API called - starting authentication check');
+    
+    // Use NextAuth for authentication with better error handling
+    let session;
+    try {
+      session = await getServerSession(authOptions);
+      console.log('Session check result:', session ? 'authenticated' : 'not authenticated');
+    } catch (authError) {
+      console.error('Authentication error:', authError);
+      return NextResponse.json(
+        { 
+          success: false,
+          error: 'Authentication service unavailable',
+          details: 'Unable to verify authentication status'
+        },
+        { status: 503 }
+      );
+    }
 
     if (!session?.user?.email) {
+      console.log('No valid session found');
       return NextResponse.json(
         { 
           success: false,
-          error: 'No authentication token provided' 
+          error: 'Authentication required',
+          details: 'Please log in to upload files'
         },
         { status: 401 }
       );
     }
 
-    // Get user from database using email from session
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-      include: {
-        organizations: {
-          include: {
-            organization: true
+    console.log('User authenticated:', session.user.email);
+
+    // Get user from database using email from session with better error handling
+    let user;
+    try {
+      user = await prisma.user.findUnique({
+        where: { email: session.user.email },
+        include: {
+          organizations: {
+            include: {
+              organization: true
+            }
           }
         }
-      }
-    });
-
-    if (!user?.isActive) {
+      });
+      console.log('User lookup result:', user ? `Found user ${user.id}` : 'User not found');
+    } catch (dbError) {
+      console.error('Database error during user lookup:', dbError);
       return NextResponse.json(
         { 
           success: false,
-          error: 'User not found or inactive' 
+          error: 'Database connection error',
+          details: 'Unable to verify user account'
+        },
+        { status: 503 }
+      );
+    }
+
+    if (!user?.isActive) {
+      console.log('User not found or inactive:', user?.id || 'no user');
+      return NextResponse.json(
+        { 
+          success: false,
+          error: 'User account not found or inactive',
+          details: 'Please contact support if this persists'
         },
         { status: 401 }
       );
     }
 
-    const formData = await request.formData();
+    // Parse form data with error handling
+    let formData;
+    try {
+      formData = await request.formData();
+      console.log('Form data parsed successfully');
+    } catch (parseError) {
+      console.error('Form data parsing error:', parseError);
+      return NextResponse.json(
+        { 
+          success: false,
+          error: 'Invalid form data',
+          details: 'Unable to parse uploaded file'
+        },
+        { status: 400 }
+      );
+    }
+
     const file = formData.get('file') as File;
     const department = formData.get('department') as string;
     const folderId = formData.get('folderId') as string;
@@ -54,6 +106,14 @@ export async function POST(request: NextRequest) {
     const visibility = formData.get('visibility') as string || 'PRIVATE';
     const channel = formData.get('channel') as string || 'WEB_UPLOAD';
     
+    console.log('Upload parameters:', {
+      filename: file?.name,
+      size: file?.size,
+      type: file?.type,
+      department,
+      channel
+    });
+
     // Get organization context
     const organizationId = user.organizations?.[0]?.organizationId || null;
 
@@ -61,7 +121,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { 
           success: false,
-          error: 'No file provided' 
+          error: 'No file provided',
+          details: 'Please select a file to upload'
         },
         { status: 400 }
       );
@@ -72,14 +133,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { 
           success: false,
-          error: `File size exceeds maximum limit of ${MAX_FILE_SIZE / (1024 * 1024)}MB` 
+          error: `File size exceeds maximum limit of ${MAX_FILE_SIZE / (1024 * 1024)}MB`,
+          details: `Your file is ${Math.round(file.size / (1024 * 1024) * 100) / 100}MB`
         },
         { status: 400 }
       );
     }
 
-    // Check storage quota
-    const quotaCheck = await checkStorageQuota(user.id, file.size);
+    // Check storage quota with error handling
+    let quotaCheck;
+    try {
+      quotaCheck = await checkStorageQuota(user.id, file.size);
+    } catch (quotaError) {
+      console.error('Storage quota check error:', quotaError);
+      // Continue with upload if quota check fails
+      quotaCheck = { allowed: true };
+    }
+
     if (!quotaCheck.allowed) {
       return NextResponse.json(
         { 
@@ -103,7 +173,8 @@ export async function POST(request: NextRequest) {
         { 
           success: false,
           error: 'Unsupported file type',
-          supportedTypes: SUPPORTED_FILE_TYPES
+          supportedTypes: SUPPORTED_FILE_TYPES,
+          details: `File type '${fileExtension}' is not supported`
         },
         { status: 400 }
       );
@@ -111,7 +182,7 @@ export async function POST(request: NextRequest) {
 
     console.log('Starting Cloudinary upload for:', file.name, 'Size:', file.size);
 
-    // Database operations
+    // Database operations with comprehensive error handling
     let createdDocument;
     const db = getDatabase();
     
@@ -163,16 +234,28 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Upload file to Cloudinary
-      const buffer = Buffer.from(await file.arrayBuffer());
-      const cloudinaryResult = await cloudinaryService.uploadDocument(
-        buffer,
-        file.name,
-        user.id,
-        organizationId || undefined
-      );
-
-      console.log('Cloudinary upload successful:', cloudinaryResult.public_id);
+      // Upload file to Cloudinary with error handling
+      let cloudinaryResult;
+      try {
+        const buffer = Buffer.from(await file.arrayBuffer());
+        cloudinaryResult = await cloudinaryService.uploadDocument(
+          buffer,
+          file.name,
+          user.id,
+          organizationId || undefined
+        );
+        console.log('Cloudinary upload successful:', cloudinaryResult.public_id);
+      } catch (cloudinaryError) {
+        console.error('Cloudinary upload failed:', cloudinaryError);
+        return NextResponse.json(
+          { 
+            success: false,
+            error: 'File upload to cloud storage failed',
+            details: cloudinaryError instanceof Error ? cloudinaryError.message : 'Unknown error'
+          },
+          { status: 500 }
+        );
+      }
 
       // Determine MIME type and classify department
       const mimeType = file.type || 'application/octet-stream';
@@ -209,29 +292,34 @@ export async function POST(request: NextRequest) {
       };
 
       // Create document record in database with Cloudinary URLs
-      createdDocument = await db.createDocument({
-        filename: file.name,
-        originalPath: cloudinaryResult.secure_url, // Store Cloudinary URL
-        cloudinaryUrl: cloudinaryResult.secure_url,
-        cloudinaryPublicId: cloudinaryResult.public_id,
-        fileType: fileExtension,
-        mimeType: mimeType,
-        fileSize: BigInt(file.size),
-        channel: channel as any,
-        department: classifiedDepartment,
-        userId: user.id,
-        organizationId: organizationId || undefined,
-        folderId: folderId || undefined,
-        tags: parsedTags,
-        visibility: visibility as any,
-        metaData: metadata
-      });
-
-      console.log('Document created in database:', createdDocument.id);
+      try {
+        createdDocument = await db.createDocument({
+          filename: file.name,
+          originalPath: cloudinaryResult.secure_url, // Store Cloudinary URL
+          cloudinaryUrl: cloudinaryResult.secure_url,
+          cloudinaryPublicId: cloudinaryResult.public_id,
+          fileType: fileExtension,
+          mimeType: mimeType,
+          fileSize: BigInt(file.size),
+          channel: channel as any,
+          department: classifiedDepartment,
+          userId: user.id,
+          organizationId: organizationId || undefined,
+          folderId: folderId || undefined,
+          tags: parsedTags,
+          visibility: visibility as any,
+          metaData: metadata
+        });
+        console.log('Document created in database:', createdDocument.id);
+      } catch (createError) {
+        console.error('Document creation error:', createError);
+        throw createError; // This will be caught by the outer catch block
+      }
 
       // Generate thumbnail for supported file types
       if (mimeType.startsWith('image/') && !mimeType.includes('svg')) {
         try {
+          const buffer = Buffer.from(await file.arrayBuffer());
           const thumbnailResult = await cloudinaryService.uploadThumbnail(
             buffer,
             createdDocument.id,
@@ -272,9 +360,9 @@ export async function POST(request: NextRequest) {
         console.error('Cloudinary upload also failed:', cloudinaryError);
         return NextResponse.json({
           success: false,
-          error: 'Both database and Cloudinary upload failed',
+          error: 'Both database and cloud storage upload failed',
           database_error: dbError instanceof Error ? dbError.message : 'Unknown database error',
-          cloudinary_error: cloudinaryError instanceof Error ? cloudinaryError.message : 'Unknown Cloudinary error',
+          cloudinary_error: cloudinaryError instanceof Error ? cloudinaryError.message : 'Unknown cloud storage error',
         }, { status: 500 });
       }
 
@@ -284,7 +372,7 @@ export async function POST(request: NextRequest) {
         fileSize: file.size,
         mimeType: file.type,
         status: 'CLOUDINARY_ONLY',
-        message: 'File uploaded to Cloudinary successfully (database error occurred)',
+        message: 'File uploaded to cloud storage successfully (database error occurred)',
         database_connected: false,
         database_error: dbError instanceof Error ? dbError.message : 'Unknown database error',
         cloudinary_url: cloudinaryResult.secure_url,
@@ -318,7 +406,7 @@ export async function POST(request: NextRequest) {
       fileSize: file.size,
       mimeType: file.type,
       status: 'PENDING',
-      message: 'File uploaded successfully to Cloudinary',
+      message: 'File uploaded successfully to cloud storage',
       database_connected: true,
       cloudinary_url: createdDocument.cloudinaryUrl,
       cloudinary_public_id: createdDocument.cloudinaryPublicId,
@@ -357,13 +445,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(processingResult);
 
   } catch (error: any) {
-    console.error('Upload error:', error);
+    console.error('Unexpected upload error:', error);
+    console.error('Error stack:', error.stack);
+    
     return NextResponse.json(
       { 
         success: false,
-        error: 'Upload failed',
-        details: error.message,
-        timestamp: new Date().toISOString()
+        error: 'Upload failed due to server error',
+        details: error.message || 'An unexpected error occurred',
+        timestamp: new Date().toISOString(),
+        // Add error type for debugging
+        errorType: error.constructor.name || 'UnknownError'
       },
       { status: 500 }
     );

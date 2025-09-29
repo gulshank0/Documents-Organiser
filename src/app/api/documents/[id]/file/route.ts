@@ -40,50 +40,54 @@ export const GET = createAuthenticatedAPIHandler(async (
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
+    // Auto-repair corrupted Cloudinary URLs
+    let needsRepair = false;
+    let repairedUrl = document.cloudinaryUrl;
+    let repairedPublicId = document.cloudinaryPublicId;
+
+    if (document.cloudinaryUrl && document.cloudinaryPublicId) {
+      // Check for common corruption patterns
+      const isCorrupted = 
+        document.cloudinaryUrl.includes('.pdf.pdf') ||
+        document.cloudinaryUrl.includes('.docx.docx') ||
+        document.cloudinaryUrl.includes('.doc.doc') ||
+        (document.cloudinaryUrl.includes('/image/upload/') && ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(document.fileType?.toLowerCase() || ''));
+
+      if (isCorrupted) {
+        console.log('🔧 Detected corrupted Cloudinary URL, attempting repair...');
+        needsRepair = true;
+
+        try {
+          // Clean up the public ID
+          repairedPublicId = document.cloudinaryPublicId
+            ?.replace(/\.pdf\.pdf$/, '.pdf')
+            ?.replace(/\.docx\.docx$/, '.docx')
+            ?.replace(/\.doc\.doc$/, '.doc')
+            ?.replace(/\.xlsx\.xlsx$/, '.xlsx')
+            ?.replace(/\.xls\.xls$/, '.xls')
+            ?.replace(/\.pptx\.pptx$/, '.pptx')
+            ?.replace(/\.ppt\.ppt$/, '.ppt');
+
+          // Generate proper URL using the cloudinary service
+          if (repairedPublicId) {
+            repairedUrl = cloudinaryService.generateDocumentUrl(repairedPublicId, document.fileType?.toLowerCase() || 'pdf');
+            console.log('✅ Generated repaired URL:', repairedUrl);
+          }
+        } catch (repairError) {
+          console.error('❌ Failed to repair URL:', repairError);
+          needsRepair = false; // Use original URLs if repair fails
+        }
+      }
+    }
+
     // If document has Cloudinary URL, try to serve it
     if (document.cloudinaryUrl && document.cloudinaryPublicId) {
-      console.log('Attempting to serve from Cloudinary URL:', document.cloudinaryUrl);
+      console.log('Attempting to serve from Cloudinary URL:', repairedUrl || document.cloudinaryUrl);
       
       try {
-        // For documents (PDFs, DOCX, etc.), we need to generate a proper delivery URL
-        let deliveryUrl = document.cloudinaryUrl;
+        // Use repaired URL if available, otherwise use original
+        const deliveryUrl = repairedUrl || document.cloudinaryUrl;
         
-        // Check if this is a document file that needs special handling
-        const documentFileTypes = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
-        const fileType = document.fileType?.toLowerCase();
-        
-        if (fileType && documentFileTypes.includes(fileType)) {
-          console.log('Generating delivery URL for document type:', fileType);
-          
-          try {
-            // Check if the Cloudinary URL is malformed (common issue)
-            if (document.cloudinaryUrl.includes('.pdf.pdf') || 
-                document.cloudinaryUrl.includes('/image/upload/') && fileType === 'pdf') {
-              console.log('Detected malformed Cloudinary URL, attempting to repair...');
-              
-              // Try to repair the URL by reconstructing it properly
-              let repairedPublicId = document.cloudinaryPublicId;
-              
-              // Remove double extensions
-              if (repairedPublicId?.endsWith('.pdf.pdf')) {
-                repairedPublicId = repairedPublicId.replace('.pdf.pdf', '.pdf');
-              }
-              
-              if (repairedPublicId) {
-                deliveryUrl = cloudinaryService.generateDocumentUrl(repairedPublicId, fileType);
-                console.log('Generated repaired delivery URL:', deliveryUrl);
-              }
-            } else {
-              // Use the new generateDocumentUrl method for better document handling
-              deliveryUrl = cloudinaryService.generateDocumentUrl(document.cloudinaryPublicId, fileType);
-              console.log('Generated delivery URL:', deliveryUrl);
-            }
-          } catch (urlError) {
-            console.error('Failed to generate Cloudinary URL, using stored URL:', urlError);
-            // Fall back to stored URL
-          }
-        }
-
         // Fetch the file from Cloudinary with proper headers and timeout
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
@@ -99,7 +103,65 @@ export const GET = createAuthenticatedAPIHandler(async (
         clearTimeout(timeoutId);
 
         if (!response.ok) {
-          console.error(`Cloudinary fetch failed: ${response.status} ${response.statusText}`);
+          console.error(`❌ Cloudinary fetch failed: ${response.status} ${response.statusText}`);
+          
+          // If it's a 404 and we haven't tried repair yet, attempt repair
+          if (response.status === 404 && !needsRepair && document.cloudinaryUrl) {
+            console.log('🔄 Attempting emergency URL repair for 404...');
+            
+            try {
+              const emergencyPublicId = document.cloudinaryPublicId
+                ?.replace(/\.pdf\.pdf$/, '.pdf')
+                ?.replace(/\.docx\.docx$/, '.docx')
+                ?.replace(/\.doc\.doc$/, '.doc');
+              
+              if (emergencyPublicId) {
+                const emergencyUrl = cloudinaryService.generateDocumentUrl(emergencyPublicId, document.fileType?.toLowerCase() || 'pdf');
+                console.log('🆘 Trying emergency URL:', emergencyUrl);
+                
+                const emergencyResponse = await fetch(emergencyUrl, {
+                  headers: {
+                    'User-Agent': 'DocumentOrganizer/1.0',
+                    'Accept': '*/*',
+                  },
+                  signal: controller.signal,
+                });
+
+                if (emergencyResponse.ok) {
+                  console.log('✅ Emergency repair successful!');
+                  const fileBuffer = await emergencyResponse.arrayBuffer();
+                  
+                  // Update the database with the corrected URLs
+                  try {
+                    await db.client.document.update({
+                      where: { id: documentId },
+                      data: {
+                        cloudinaryUrl: emergencyUrl,
+                        cloudinaryPublicId: emergencyPublicId,
+                      }
+                    });
+                    console.log('📝 Database updated with corrected URLs');
+                  } catch (updateError) {
+                    console.error('⚠️ Failed to update database with corrected URLs:', updateError);
+                  }
+
+                  // Return the file
+                  const headers = new Headers();
+                  headers.set('Content-Type', document.mimeType || 'application/octet-stream');
+                  headers.set('Content-Length', fileBuffer.byteLength.toString());
+                  headers.set('Cache-Control', 'public, max-age=3600');
+                  headers.set('Content-Disposition', `inline; filename="${document.filename}"`);
+                  headers.set('Access-Control-Allow-Origin', '*');
+                  headers.set('Access-Control-Allow-Methods', 'GET');
+                  headers.set('Access-Control-Allow-Headers', 'Content-Type');
+
+                  return new NextResponse(fileBuffer, { headers });
+                }
+              }
+            } catch (emergencyError) {
+              console.error('🆘 Emergency repair also failed:', emergencyError);
+            }
+          }
           
           // If it's a 404, the file might not exist in Cloudinary
           if (response.status === 404) {
@@ -110,7 +172,23 @@ export const GET = createAuthenticatedAPIHandler(async (
         }
 
         const fileBuffer = await response.arrayBuffer();
-        console.log('File fetched from Cloudinary successfully, size:', fileBuffer.byteLength, 'bytes');
+        console.log('✅ File fetched from Cloudinary successfully, size:', fileBuffer.byteLength, 'bytes');
+        
+        // If we used a repaired URL and it worked, update the database
+        if (needsRepair && repairedUrl && repairedPublicId) {
+          try {
+            await db.client.document.update({
+              where: { id: documentId },
+              data: {
+                cloudinaryUrl: repairedUrl,
+                cloudinaryPublicId: repairedPublicId,
+              }
+            });
+            console.log('📝 Database updated with repaired URLs');
+          } catch (updateError) {
+            console.error('⚠️ Failed to update database with repaired URLs:', updateError);
+          }
+        }
         
         // Set appropriate headers for the response
         const headers = new Headers();
@@ -126,11 +204,11 @@ export const GET = createAuthenticatedAPIHandler(async (
         headers.set('Access-Control-Allow-Methods', 'GET');
         headers.set('Access-Control-Allow-Headers', 'Content-Type');
 
-        console.log('Returning file with headers:', Object.fromEntries(headers.entries()));
+        console.log('📤 Returning file with headers:', Object.fromEntries(headers.entries()));
         return new NextResponse(fileBuffer, { headers });
 
       } catch (cloudinaryError) {
-        console.error('Error fetching from Cloudinary:', cloudinaryError);
+        console.error('❌ Error fetching from Cloudinary:', cloudinaryError);
         
         // Log more details about the error
         if (cloudinaryError instanceof Error) {
@@ -141,7 +219,7 @@ export const GET = createAuthenticatedAPIHandler(async (
         }
         
         // Don't immediately fail - try local storage fallback
-        console.log('Cloudinary failed, attempting local storage fallback...');
+        console.log('🔄 Cloudinary failed, attempting local storage fallback...');
       }
     }
 

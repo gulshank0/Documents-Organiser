@@ -54,8 +54,8 @@ export function formatFileSize(bytes: number): string {
 export function validateFileType(file: File) {
   const maxSize = 100 * 1024 * 1024; // 100MB increased limit
   
-  // Get file extension
-  const extension = file.name.split('.').pop()?.toUpperCase() || '';
+  // Get file extension (convert to lowercase to match SUPPORTED_FILE_TYPES)
+  const extension = file.name.split('.').pop()?.toLowerCase() || '';
   
   // Check if file type is supported
   if (!SUPPORTED_FILE_TYPES.includes(extension as any)) {
