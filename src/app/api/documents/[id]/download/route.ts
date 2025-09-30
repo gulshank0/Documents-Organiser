@@ -1,56 +1,88 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getDatabase } from '@/lib/database';
 import { createAuthenticatedAPIHandler } from '@/lib/auth';
-import fs from 'fs';
-import path from 'path';
+import { v2 as cloudinary } from 'cloudinary';
+
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 export const GET = createAuthenticatedAPIHandler(async (
   request: NextRequest,
   user: any,
   authUser: any,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) => {
   try {
-    const documentId = params.id;
-    
-    // Get document from database
-    const { getDatabase } = await import('@/lib/database');
+    const { id: documentId } = await params;
     const db = getDatabase();
     
+    // Get the document with access check
     const document = await db.getDocumentById(documentId, user.id);
-
+    
     if (!document) {
-      return NextResponse.json({ error: 'Document not found' }, { status: 404 });
+      return NextResponse.json(
+        { 
+          success: false,
+          error: 'Document not found',
+        }, 
+        { status: 404 }
+      );
     }
 
-    // Check if user has access to this document
-    if (document.userId !== user.id) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    // Get the file URL from Cloudinary
+    if (!document.cloudinaryPublicId) {
+      return NextResponse.json(
+        { 
+          success: false,
+          error: 'File not available',
+        }, 
+        { status: 404 }
+      );
     }
 
-    // Get file path
-    const filePath = path.join(process.cwd(), document.originalPath);
+    // Generate a signed download URL
+    const resourceType = getResourceType(document.fileType);
+    const url = cloudinary.url(document.cloudinaryPublicId, {
+      resource_type: resourceType,
+      type: 'upload',
+      sign_url: true,
+      secure: true,
+      attachment: true, // Force download
+      flags: 'attachment:' + document.filename, // Set filename for download
+    });
+
+    // Redirect to Cloudinary download URL
+    return NextResponse.redirect(url);
     
-    // Check if file exists
-    if (!fs.existsSync(filePath)) {
-      return NextResponse.json({ error: 'File not found' }, { status: 404 });
-    }
-
-    // Read file
-    const fileBuffer = fs.readFileSync(filePath);
-    
-    // Set headers for download
-    const headers = new Headers();
-    headers.set('Content-Type', document.mimeType || 'application/octet-stream');
-    headers.set('Content-Length', fileBuffer.length.toString());
-    headers.set('Content-Disposition', `attachment; filename="${document.filename}"`);
-
-    return new NextResponse(fileBuffer, { headers });
-
-  } catch (error) {
-    console.error('Error downloading document:', error);
+  } catch (error: any) {
+    console.error('Error downloading file:', error);
     return NextResponse.json(
-      { error: 'Failed to download document' },
+      { 
+        success: false,
+        error: 'Failed to download file',
+        details: error.message,
+      },
       { status: 500 }
     );
   }
 });
+
+function getResourceType(fileType: string | null): 'image' | 'video' | 'raw' | 'auto' {
+  if (!fileType) return 'raw';
+  
+  const type = fileType.toLowerCase();
+  
+  if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'tiff'].includes(type)) {
+    return 'image';
+  }
+  
+  if (['mp4', 'webm', 'ogg', 'avi', 'mov', 'wmv', 'flv', 'mkv'].includes(type)) {
+    return 'video';
+  }
+  
+  return 'raw';
+}

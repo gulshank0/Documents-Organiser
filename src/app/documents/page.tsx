@@ -21,12 +21,14 @@ import {
   ArrowsRightLeftIcon,
   Squares2X2Icon,
   ListBulletIcon,
-  CheckIcon,
-  PlusIcon,
   Cog6ToothIcon,
   ChevronRightIcon,
-  HomeIcon
+  HomeIcon,
+  TrashIcon,
+  ChevronDoubleLeftIcon,
+  ChevronDoubleRightIcon
 } from '@heroicons/react/24/outline';
+import { FolderIcon as FolderIconSolid } from '@heroicons/react/24/solid';
 
 interface FolderInfo {
   id: string;
@@ -63,6 +65,11 @@ export default function DocumentsPage() {
   // Preview modal state
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
+
+  // Delete confirmation state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [documentToDelete, setDocumentToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Check authentication status
   useEffect(() => {
@@ -301,6 +308,68 @@ export default function DocumentsPage() {
     console.log('New folder created:', folder);
   };
 
+  const handleDeleteClick = (documentId: string) => {
+    setDocumentToDelete(documentId);
+    setShowDeleteConfirm(true);
+  };
+
+  const handleBulkDeleteClick = () => {
+    if (selectedDocuments.size === 0) return;
+    setDocumentToDelete(null); // null means bulk delete
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    setIsDeleting(true);
+    
+    try {
+      if (documentToDelete) {
+        // Single document delete
+        const response = await fetch(`/api/documents/${documentToDelete}`, {
+          method: 'DELETE',
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to delete document');
+        }
+        
+        await fetchDocuments();
+        await fetchFolders();
+      } else {
+        // Bulk delete
+        const deletePromises = Array.from(selectedDocuments).map(docId =>
+          fetch(`/api/documents/${docId}`, {
+            method: 'DELETE',
+          })
+        );
+        
+        const results = await Promise.allSettled(deletePromises);
+        const failures = results.filter(r => r.status === 'rejected');
+        
+        if (failures.length > 0) {
+          throw new Error(`Failed to delete ${failures.length} document(s)`);
+        }
+        
+        setSelectedDocuments(new Set());
+        await fetchDocuments();
+        await fetchFolders();
+      }
+    } catch (error) {
+      console.error('Error deleting document(s):', error);
+      alert(error instanceof Error ? error.message : 'Failed to delete document(s)');
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+      setDocumentToDelete(null);
+    }
+  };
+
+  const handleCancelDelete = () => {
+    setShowDeleteConfirm(false);
+    setDocumentToDelete(null);
+  };
+
   const getCurrentFolderName = () => {
     if (!filters.folderId) return 'All Documents';
     return currentFolderInfo?.name || 'Selected Folder';
@@ -344,17 +413,29 @@ export default function DocumentsPage() {
     <div className="flex min-h-screen">
       <Navigation />
       
-      {/* Enhanced Folder sidebar */}
+      {/* Enhanced Folder sidebar with smooth slide animation - NOW ON RIGHT */}
       {showFolderPanel && (
-        <div className="w-80 border-r border-border bg-card/50 pt-16">
-          <div className="p-4 max-h-screen overflow-y-auto">
+        <div className="fixed right-0 top-16 h-[calc(100vh-4rem)] w-80 border-l border-border bg-card/50 backdrop-blur-sm z-20">
+          <div className="p-4 h-full overflow-y-auto relative">
+            {/* Collapse button inside the sidebar */}
+            <button
+              onClick={() => setShowFolderPanel(false)}
+              className="absolute top-4 left-4 p-2 hover:bg-accent rounded-lg text-muted-foreground hover:text-foreground transition-all duration-200 group z-10"
+              title="Hide folders panel"
+            >
+              <ChevronDoubleRightIcon className="w-5 h-5 group-hover:scale-110 transition-transform" />
+            </button>
+
             {/* Quick Folder Creator at the top */}
-            <div className="mb-4 space-y-3">
+            <div className="mb-4 space-y-3 pl-12">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-medium text-foreground">Quick Create</h3>
+                <h3 className="text-sm font-medium text-foreground flex items-center">
+                  <FolderIconSolid className="w-4 h-4 mr-2 text-primary" />
+                  Quick Create
+                </h3>
                 <button
                   onClick={() => setShowAdvancedFolderModal(true)}
-                  className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground"
+                  className="p-1.5 hover:bg-accent rounded-md text-muted-foreground hover:text-foreground transition-colors"
                   title="Advanced folder options"
                 >
                   <Cog6ToothIcon className="w-4 h-4" />
@@ -371,7 +452,7 @@ export default function DocumentsPage() {
               <div className="text-xs text-muted-foreground text-center">
                 Or <button 
                   onClick={() => setShowAdvancedFolderModal(true)}
-                  className="text-primary hover:underline"
+                  className="text-primary hover:underline font-medium"
                 >
                   create with advanced options
                 </button>
@@ -389,7 +470,18 @@ export default function DocumentsPage() {
         </div>
       )}
 
-      <main className={`flex-1 pt-16 ${showFolderPanel ? '' : 'ml-0'}`}>
+      <main className={`flex-1 pt-16 transition-all duration-300 ${showFolderPanel ? 'mr-80' : 'mr-0'}`}>
+        {/* Floating "Show Folders" button when panel is hidden - NOW ON RIGHT */}
+        {!showFolderPanel && (
+          <button
+            onClick={() => setShowFolderPanel(true)}
+            className="fixed right-4 top-20 z-50 p-3 bg-primary text-primary-foreground rounded-xl shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-200 group"
+            title="Show folders panel"
+          >
+            <ChevronDoubleLeftIcon className="w-5 h-5 group-hover:animate-pulse" />
+          </button>
+        )}
+        
         <div className="max-w-7xl mx-auto pt-10 px-4 sm:px-6 lg:px-8">
           {/* Enhanced Header with Breadcrumb */}
           <div className="mb-8">
@@ -515,13 +607,22 @@ export default function DocumentsPage() {
               {/* Selected Actions */}
               <div className="flex gap-2">
                 {selectedDocuments.size > 0 && (
-                  <button 
-                    onClick={handleMoveDocuments}
-                    className="inline-flex items-center justify-center rounded-xl text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 border px-4 py-2 transition-all duration-200"
-                  >
-                    <ArrowsRightLeftIcon className="w-4 h-4 mr-2" />
-                    Move ({selectedDocuments.size})
-                  </button>
+                  <>
+                    <button 
+                      onClick={handleMoveDocuments}
+                      className="inline-flex items-center justify-center rounded-xl text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 border px-4 py-2 transition-all duration-200"
+                    >
+                      <ArrowsRightLeftIcon className="w-4 h-4 mr-2" />
+                      Move ({selectedDocuments.size})
+                    </button>
+                    <button 
+                      onClick={handleBulkDeleteClick}
+                      className="inline-flex items-center justify-center rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 border px-4 py-2 transition-all duration-200"
+                    >
+                      <TrashIcon className="w-4 h-4 mr-2" />
+                      Delete ({selectedDocuments.size})
+                    </button>
+                  </>
                 )}
                 
                 {/* Quick create folder button */}
@@ -675,15 +776,19 @@ export default function DocumentsPage() {
                               <EyeIcon className="w-3 h-3 mr-1" />
                               View
                             </Link>
+                            <span className="text-muted-foreground">•</span>
+                            <button
+                              onClick={() => handleDeleteClick(doc.id)}
+                              className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors text-xs flex items-center"
+                            >
+                              <TrashIcon className="w-3 h-3 mr-1" />
+                              Delete
+                            </button>
                             {doc.status === 'COMPLETED' && (
                               <>
                                 <span className="text-muted-foreground">•</span>
                                 <button className="text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 transition-colors text-xs">
                                   Summary
-                                </button>
-                                <span className="text-muted-foreground">•</span>
-                                <button className="text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 transition-colors text-xs">
-                                  Compliance
                                 </button>
                               </>
                             )}
@@ -906,6 +1011,57 @@ export default function DocumentsPage() {
         onClose={() => setShowAdvancedFolderModal(false)}
         onFolderCreated={handleFolderCreated}
       />
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-background border border-border rounded-xl w-full max-w-md p-6 shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
+                <TrashIcon className="w-6 h-6 text-red-600 dark:text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">Confirm Delete</h3>
+                <p className="text-sm text-muted-foreground">This action cannot be undone</p>
+              </div>
+            </div>
+            
+            <p className="text-muted-foreground mb-6">
+              {documentToDelete
+                ? 'Are you sure you want to delete this document? All associated data will be permanently removed.'
+                : `Are you sure you want to delete ${selectedDocuments.size} selected document${selectedDocuments.size > 1 ? 's' : ''}? All associated data will be permanently removed.`
+              }
+            </p>
+            
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={handleCancelDelete}
+                disabled={isDeleting}
+                className="inline-flex items-center justify-center rounded-xl text-sm font-semibold bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-input px-4 py-2 transition-all duration-200 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="inline-flex items-center justify-center rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 border px-4 py-2 transition-all duration-200 disabled:opacity-50"
+              >
+                {isDeleting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <TrashIcon className="w-4 h-4 mr-2" />
+                    Delete {documentToDelete ? 'Document' : `${selectedDocuments.size} Documents`}
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

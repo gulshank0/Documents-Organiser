@@ -13,6 +13,7 @@ import {
   Menu,
   X,
   ChevronRight,
+  ChevronLeft,
   Settings,
   Bell,
   User,
@@ -428,6 +429,61 @@ export function Navigation() {
           }}
           className="h-full glass-card border-r border-border/30 flex flex-col shadow-xl backdrop-blur-xl bg-background/95"
         >
+          {/* Collapse/Expand Toggle Button */}
+          <motion.button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className={cn(
+              "absolute -right-3 top-20 z-50 group",
+              "w-6 h-12 rounded-r-xl rounded-l-sm",
+              "bg-gradient-to-r from-background via-primary/90 to-primary",
+              "hover:from-background hover:via-primary hover:to-primary",
+              "shadow-lg hover:shadow-xl hover:shadow-primary/20",
+              "border border-l-0 border-border/50 hover:border-primary/50",
+              "transition-all duration-300",
+              "flex items-center justify-center",
+              "backdrop-blur-sm"
+            )}
+            whileHover={{ x: 2 }}
+            whileTap={{ scale: 0.95 }}
+            title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {/* Animated background glow */}
+            <motion.div
+              className="absolute inset-0 rounded-r-xl rounded-l-sm bg-gradient-to-r from-transparent via-primary/30 to-primary/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+              animate={{
+                opacity: [0.3, 0.6, 0.3]
+              }}
+              transition={{
+                duration: 2,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+            />
+            
+            {/* Icon with rotation animation */}
+            <motion.div
+              animate={{ 
+                x: isCollapsed ? 1 : -1,
+                rotate: isCollapsed ? 180 : 0 
+              }}
+              transition={{ 
+                type: "spring",
+                stiffness: 300,
+                damping: 30
+              }}
+              className="relative z-10"
+            >
+              <ChevronLeft className="w-3.5 h-3.5 text-primary-foreground drop-shadow-sm" />
+            </motion.div>
+            
+            {/* Decorative dots */}
+            <div className="absolute left-1/2 -translate-x-1/2 flex flex-col gap-1 opacity-40 group-hover:opacity-60 transition-opacity">
+              <div className="w-0.5 h-0.5 rounded-full bg-primary-foreground" />
+              <div className="w-0.5 h-0.5 rounded-full bg-primary-foreground" />
+              <div className="w-0.5 h-0.5 rounded-full bg-primary-foreground" />
+            </div>
+          </motion.button>
+
           <div className={cn(
             "flex-shrink-0 border-b border-border/30 transition-all duration-500 relative overflow-hidden",
             isCollapsed ? "p-4" : "p-6 xl:p-8"

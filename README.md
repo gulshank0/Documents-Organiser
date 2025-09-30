@@ -50,7 +50,7 @@ A robust, enterprise-grade document management system with multi-user support, r
 - **Storage**: Local filesystem or cloud storage (AWS S3, Azure, GCS)
 - **Security**: Input validation, CSRF protection, rate limiting
 - **Real-time**: WebSocket for live updates
-- **AI/ML**: OpenAI integration for semantic search and categorization
+- **AI/ML**: Google Gemini integration for semantic search and categorization
 
 ## 📋 Prerequisites
 

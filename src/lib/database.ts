@@ -928,7 +928,7 @@ class EnhancedDatabase {
     };
   }
 
-  // Semantic search implementation using OpenAI embeddings
+  // Semantic search implementation using Gemini embeddings
   private async performSemanticSearch(
     query: string, 
     userId: string, 
@@ -1050,34 +1050,37 @@ class EnhancedDatabase {
     };
   }
 
-  // Generate embedding using OpenAI API
+  // Generate embedding using Gemini API
   private async generateEmbedding(text: string): Promise<number[] | null> {
     try {
-      const openaiApiKey = process.env.OPENAI_API_KEY;
-      if (!openaiApiKey) {
-        console.warn('OpenAI API key not configured for semantic search');
+      const geminiApiKey = process.env.GEMINI_API_KEY;
+      if (!geminiApiKey) {
+        console.warn('Gemini API key not configured for semantic search');
         return null;
       }
 
-      const response = await fetch('https://api.openai.com/v1/embeddings', {
+      const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=' + geminiApiKey, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${openaiApiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'text-embedding-3-small',
-          input: text.substring(0, 8000), // Limit input size
-          encoding_format: 'float'
+          content: {
+            parts: [{
+              text: text.substring(0, 10000) // Gemini supports larger input
+            }]
+          },
+          taskType: 'RETRIEVAL_DOCUMENT'
         }),
       });
 
       if (!response.ok) {
-        throw new Error(`OpenAI API error: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`Gemini API error: ${response.status} - ${JSON.stringify(errorData)}`);
       }
 
       const data = await response.json();
-      return data.data[0].embedding;
+      return data.embedding.values;
     } catch (error) {
       console.error('Failed to generate embedding:', error);
       return null;

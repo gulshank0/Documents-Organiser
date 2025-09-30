@@ -33,9 +33,9 @@ interface ChartData {
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm p-3 rounded-xl shadow-lg border border-slate-200/50 dark:border-slate-700/50">
-        <p className="font-medium text-slate-900 dark:text-slate-100">{label}</p>
-        <p className="text-sm text-slate-600 dark:text-slate-400">
+      <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm p-2 sm:p-3 rounded-lg sm:rounded-xl shadow-lg border border-slate-200/50 dark:border-slate-700/50">
+        <p className="font-medium text-slate-900 dark:text-slate-100 text-xs sm:text-sm">{label}</p>
+        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
           Documents: <span className="font-semibold text-blue-600 dark:text-blue-400">{payload[0].value}</span>
         </p>
       </div>
@@ -60,7 +60,7 @@ const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent
       fill="white" 
       textAnchor={x > cx ? 'start' : 'end'} 
       dominantBaseline="central"
-      className="text-xs font-medium drop-shadow-sm"
+      className="text-[10px] sm:text-xs font-medium drop-shadow-sm"
     >
       {`${(percent * 100).toFixed(0)}%`}
     </text>
@@ -106,20 +106,20 @@ export default function DashboardCharts() {
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
         {[...Array(2)].map((_, i) => (
           <Card key={i} className="bg-gradient-to-br from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-800/50 border-0 shadow-lg">
-            <CardHeader className="pb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-r from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-600 rounded-lg animate-pulse"></div>
-                <div className="space-y-2">
-                  <div className="h-5 w-40 bg-gradient-to-r from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-600 rounded animate-pulse"></div>
-                  <div className="h-4 w-32 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></div>
+            <CardHeader className="pb-3 sm:pb-4 p-4 sm:p-6">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-600 rounded-lg animate-pulse"></div>
+                <div className="space-y-2 flex-1">
+                  <div className="h-4 sm:h-5 w-32 sm:w-40 bg-gradient-to-r from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-600 rounded animate-pulse"></div>
+                  <div className="h-3 sm:h-4 w-24 sm:w-32 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></div>
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="h-72 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 rounded-xl animate-pulse"></div>
+            <CardContent className="p-4 sm:p-6">
+              <div className="h-48 sm:h-64 md:h-72 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 rounded-xl animate-pulse"></div>
             </CardContent>
           </Card>
         ))}
@@ -131,11 +131,11 @@ export default function DashboardCharts() {
   const totalStatusDocs = statusData.reduce((sum, item) => sum + item.value, 0);
 
   return (
-    <div className="space-y-6 sm:space-y-8">
+    <div className="space-y-4 sm:space-y-6 lg:space-y-8">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8"
+        className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 lg:gap-8"
       >
         {/* Department Distribution */}
         <motion.div
@@ -144,29 +144,29 @@ export default function DashboardCharts() {
           transition={{ delay: 0.1 }}
         >
           <Card className="h-full bg-gradient-to-br from-white via-blue-50/20 to-white dark:from-slate-900 dark:via-blue-950/10 dark:to-slate-900 border-0 shadow-lg hover:shadow-xl transition-all duration-300">
-            <CardHeader className="pb-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl shadow-lg">
-                    <ChartPieIcon className="w-5 h-5 text-white" />
+            <CardHeader className="pb-3 sm:pb-4 p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="p-2 sm:p-2.5 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg sm:rounded-xl shadow-lg flex-shrink-0">
+                    <ChartPieIcon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                   </div>
-                  <div>
-                    <CardTitle className="text-lg font-bold bg-gradient-to-r from-slate-900 to-slate-700 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">
+                  <div className="min-w-0">
+                    <CardTitle className="text-sm sm:text-base md:text-lg font-bold bg-gradient-to-r from-slate-900 to-slate-700 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent truncate">
                       Department Distribution
                     </CardTitle>
-                    <CardDescription className="text-sm text-muted-foreground">
+                    <CardDescription className="text-xs sm:text-sm mt-0.5 sm:mt-1">
                       Documents across departments
                     </CardDescription>
                   </div>
                 </div>
-                <Badge variant="secondary" className="text-xs px-3 py-1 rounded-full">
+                <Badge variant="secondary" className="text-xs px-2 sm:px-3 py-0.5 sm:py-1 rounded-full w-fit">
                   {totalDepartmentDocs} total
                 </Badge>
               </div>
             </CardHeader>
-            <CardContent className="pt-0">
+            <CardContent className="pt-0 p-4 sm:p-6">
               <div className="relative">
-                <ResponsiveContainer width="100%" height={300}>
+                <ResponsiveContainer width="100%" height={250} className="sm:h-[300px]">
                   <PieChart>
                     <Pie
                       data={departmentData}
@@ -174,8 +174,8 @@ export default function DashboardCharts() {
                       cy="50%"
                       labelLine={false}
                       label={renderCustomLabel}
-                      outerRadius={90}
-                      innerRadius={35}
+                      outerRadius={window.innerWidth < 640 ? 70 : 90}
+                      innerRadius={window.innerWidth < 640 ? 28 : 35}
                       fill="#8884d8"
                       dataKey="value"
                       stroke="rgba(255,255,255,0.8)"
@@ -192,25 +192,26 @@ export default function DashboardCharts() {
                     <Tooltip content={<CustomTooltip />} />
                     <Legend 
                       wrapperStyle={{ 
-                        paddingTop: '20px',
-                        fontSize: '12px'
+                        paddingTop: '16px',
+                        fontSize: window.innerWidth < 640 ? '11px' : '12px'
                       }}
                       iconType="circle"
+                      iconSize={window.innerWidth < 640 ? 8 : 10}
                     />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
               
               {/* Department Summary */}
-              <div className="mt-4 pt-4 border-t border-slate-200/50 dark:border-slate-700/50">
-                <div className="grid grid-cols-2 gap-4">
+              <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-slate-200/50 dark:border-slate-700/50">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
                   {departmentData.slice(0, 4).map((dept, index) => (
                     <div key={dept.name} className="flex items-center gap-2">
                       <div 
-                        className="w-3 h-3 rounded-full flex-shrink-0"
+                        className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full flex-shrink-0"
                         style={{ backgroundColor: DEPARTMENT_COLORS[index] }}
                       />
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p className="text-xs font-medium text-slate-900 dark:text-slate-100 truncate">
                           {dept.name}
                         </p>
@@ -233,29 +234,37 @@ export default function DashboardCharts() {
           transition={{ delay: 0.2 }}
         >
           <Card className="h-full bg-gradient-to-br from-white via-green-50/20 to-white dark:from-slate-900 dark:via-green-950/10 dark:to-slate-900 border-0 shadow-lg hover:shadow-xl transition-all duration-300">
-            <CardHeader className="pb-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl shadow-lg">
-                    <ChartBarIcon className="w-5 h-5 text-white" />
+            <CardHeader className="pb-3 sm:pb-4 p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="p-2 sm:p-2.5 bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg sm:rounded-xl shadow-lg flex-shrink-0">
+                    <ChartBarIcon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                   </div>
-                  <div>
-                    <CardTitle className="text-lg font-bold bg-gradient-to-r from-slate-900 to-slate-700 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">
+                  <div className="min-w-0">
+                    <CardTitle className="text-sm sm:text-base md:text-lg font-bold bg-gradient-to-r from-slate-900 to-slate-700 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent truncate">
                       Processing Status
                     </CardTitle>
-                    <CardDescription className="text-sm text-muted-foreground">
+                    <CardDescription className="text-xs sm:text-sm mt-0.5 sm:mt-1">
                       Document processing progress
                     </CardDescription>
                   </div>
                 </div>
-                <Badge variant="secondary" className="text-xs px-3 py-1 rounded-full">
+                <Badge variant="secondary" className="text-xs px-2 sm:px-3 py-0.5 sm:py-1 rounded-full w-fit">
                   {totalStatusDocs} total
                 </Badge>
               </div>
             </CardHeader>
-            <CardContent className="pt-0">
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={statusData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+            <CardContent className="pt-0 p-4 sm:p-6">
+              <ResponsiveContainer width="100%" height={250} className="sm:h-[300px]">
+                <BarChart 
+                  data={statusData} 
+                  margin={{ 
+                    top: 20, 
+                    right: window.innerWidth < 640 ? 10 : 30, 
+                    left: window.innerWidth < 640 ? 0 : 20, 
+                    bottom: 5 
+                  }}
+                >
                   <defs>
                     <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.9}/>
@@ -269,14 +278,18 @@ export default function DashboardCharts() {
                   />
                   <XAxis 
                     dataKey="name" 
-                    tick={{ fontSize: 12, fill: 'currentColor' }}
+                    tick={{ fontSize: window.innerWidth < 640 ? 10 : 12, fill: 'currentColor' }}
                     tickLine={false}
                     axisLine={false}
+                    angle={window.innerWidth < 640 ? -45 : 0}
+                    textAnchor={window.innerWidth < 640 ? 'end' : 'middle'}
+                    height={window.innerWidth < 640 ? 60 : 30}
                   />
                   <YAxis 
-                    tick={{ fontSize: 12, fill: 'currentColor' }}
+                    tick={{ fontSize: window.innerWidth < 640 ? 10 : 12, fill: 'currentColor' }}
                     tickLine={false}
                     axisLine={false}
+                    width={window.innerWidth < 640 ? 30 : 40}
                   />
                   <Tooltip content={<CustomTooltip />} />
                   <Bar 
@@ -289,11 +302,11 @@ export default function DashboardCharts() {
               </ResponsiveContainer>
 
               {/* Status Summary */}
-              <div className="mt-4 pt-4 border-t border-slate-200/50 dark:border-slate-700/50">
-                <div className="flex flex-wrap gap-3">
+              <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-slate-200/50 dark:border-slate-700/50">
+                <div className="flex flex-wrap gap-2 sm:gap-3">
                   {statusData.map((status, index) => (
-                    <div key={status.name} className="flex items-center gap-2 px-3 py-1.5 bg-slate-100/50 dark:bg-slate-800/50 rounded-lg">
-                      <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
+                    <div key={status.name} className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 bg-slate-100/50 dark:bg-slate-800/50 rounded-lg">
+                      <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-blue-500 flex-shrink-0" />
                       <span className="text-xs font-medium text-slate-900 dark:text-slate-100">
                         {status.name}: {status.value}
                       </span>

@@ -61,37 +61,37 @@ function DashboardSkeleton() {
   const listItems = Array.from({ length: 5 }, (_, i) => `skeleton-list-${i}`)
   
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
         {skeletonItems.map((id) => (
           <Card key={id} className="animate-pulse">
-            <CardHeader className="pb-3">
-              <div className="h-4 bg-muted rounded w-3/4"></div>
+            <CardHeader className="pb-2 sm:pb-3 p-4 sm:p-6">
+              <div className="h-3 sm:h-4 bg-muted rounded w-3/4"></div>
             </CardHeader>
-            <CardContent>
-              <div className="h-8 bg-muted rounded w-1/2 mb-2"></div>
-              <div className="h-3 bg-muted rounded w-full"></div>
+            <CardContent className="p-4 sm:p-6 pt-0">
+              <div className="h-6 sm:h-8 bg-muted rounded w-1/2 mb-2"></div>
+              <div className="h-2 sm:h-3 bg-muted rounded w-full"></div>
             </CardContent>
           </Card>
         ))}
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
         <Card className="animate-pulse">
-          <CardHeader>
-            <div className="h-5 bg-muted rounded w-1/3"></div>
+          <CardHeader className="p-4 sm:p-6">
+            <div className="h-4 sm:h-5 bg-muted rounded w-1/3"></div>
           </CardHeader>
-          <CardContent>
-            <div className="h-64 bg-muted rounded"></div>
+          <CardContent className="p-4 sm:p-6">
+            <div className="h-48 sm:h-64 bg-muted rounded"></div>
           </CardContent>
         </Card>
         <Card className="animate-pulse">
-          <CardHeader>
-            <div className="h-5 bg-muted rounded w-1/3"></div>
+          <CardHeader className="p-4 sm:p-6">
+            <div className="h-4 sm:h-5 bg-muted rounded w-1/3"></div>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
+          <CardContent className="p-4 sm:p-6">
+            <div className="space-y-3 sm:space-y-4">
               {listItems.map((id) => (
-                <div key={id} className="h-12 bg-muted rounded"></div>
+                <div key={id} className="h-10 sm:h-12 bg-muted rounded"></div>
               ))}
             </div>
           </CardContent>
@@ -251,34 +251,35 @@ export function DashboardOverview() {
 
   return (
     <DashboardErrorBoundary>
-      <div className="min-h-screen pt-16">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 max-w-7xl">
+      <div className="min-h-screen pt-14 sm:pt-16 lg:pt-16">
+        <div className="container mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-5 md:py-6 lg:py-8 max-w-7xl">
           {/* Welcome Section */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-6 sm:mb-8 lg:mb-10"
+            className="mb-4 sm:mb-6 lg:mb-8"
           >
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div className="space-y-1 sm:space-y-2">
-                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-foreground">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+              <div className="space-y-1">
+                <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold tracking-tight text-foreground">
                   Welcome back
                 </h1>
-                <div className="flex items-center gap-2">
-                  <p className="text-sm sm:text-base text-muted-foreground max-w-2xl">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                  <p className="text-xs sm:text-sm md:text-base text-muted-foreground max-w-2xl">
                     Here's what's happening with your document system today.
                   </p>
                   {isFallbackMode && (
-                    <Badge variant="outline" className="text-xs bg-accent border-border text-accent-foreground">
+                    <Badge variant="outline" className="text-xs bg-accent border-border text-accent-foreground w-fit">
                       Limited Mode
                     </Badge>
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="text-xs sm:text-sm px-2 py-1">
-                  <Clock className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-                  <span className="hidden xs:inline">Last updated: </span>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <Badge variant="outline" className="text-xs px-2 py-1">
+                  <Clock className="w-3 h-3 mr-1 sm:mr-2" />
+                  <span className="hidden sm:inline">Last updated: </span>
+                  <span className="sm:hidden">Updated: </span>
                   {currentTime || '--:--:--'}
                 </Badge>
                 <Button 
@@ -286,10 +287,10 @@ export function DashboardOverview() {
                   size="sm" 
                   onClick={handleRefresh}
                   disabled={isFetching}
-                  className="px-2"
+                  className="px-2 h-8"
                   title="Refresh dashboard data"
                 >
-                  <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isFetching ? 'animate-spin' : ''}`} />
                 </Button>
               </div>
             </div>
@@ -300,16 +301,16 @@ export function DashboardOverview() {
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mb-6"
+              className="mb-4 sm:mb-6"
             >
-              <div className="bg-accent/50 border border-border rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="w-5 h-5 text-orange-600 dark:text-orange-400 mt-0.5" />
-                  <div>
-                    <h3 className="font-semibold text-foreground">
+              <div className="bg-accent/50 border border-border rounded-lg p-3 sm:p-4">
+                <div className="flex items-start gap-2 sm:gap-3">
+                  <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600 dark:text-orange-400 mt-0.5 flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-sm sm:text-base font-semibold text-foreground">
                       {systemHealth === 'disconnected' ? 'Database Connection Issue' : 'Limited Functionality'}
                     </h3>
-                    <p className="text-sm text-muted-foreground mt-1">
+                    <p className="text-xs sm:text-sm text-muted-foreground mt-1">
                       {systemHealth === 'disconnected' 
                         ? 'Unable to connect to the database. Some features may be unavailable.'
                         : 'System is running with limited capabilities. Real-time data may not be available.'
@@ -326,9 +327,9 @@ export function DashboardOverview() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="mb-6 sm:mb-8 lg:mb-10"
+            className="mb-4 sm:mb-6 lg:mb-8"
           >
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               {quickActions.map((action, index) => {
                 const Icon = action.icon
                 const isDisabled = isFallbackMode && action.href === '/upload'
@@ -351,10 +352,10 @@ export function DashboardOverview() {
                       onClick={() => !isDisabled && router.push(action.href)}
                     >
                       <div className={`absolute inset-0 bg-gradient-to-r ${action.color} opacity-5 group-hover:opacity-10 transition-opacity`} />
-                      <CardHeader className="pb-3 p-4 sm:p-6">
-                        <div className="flex items-start sm:items-center gap-3">
-                          <div className={`p-2 sm:p-3 rounded-lg bg-gradient-to-r ${action.color} flex-shrink-0 transition-transform ${isDisabled ? '' : 'group-hover:scale-110'}`}>
-                            <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                      <CardHeader className="pb-2 sm:pb-3 p-3 sm:p-4 md:p-6">
+                        <div className="flex items-start sm:items-center gap-2 sm:gap-3">
+                          <div className={`p-2 rounded-lg bg-gradient-to-r ${action.color} flex-shrink-0 transition-transform ${isDisabled ? '' : 'group-hover:scale-110'}`}>
+                            <Icon className="w-4 h-4 text-white" />
                           </div>
                           <div className="min-w-0 flex-1">
                             <CardTitle className={cn(
@@ -364,12 +365,12 @@ export function DashboardOverview() {
                               {action.title}
                               {isDisabled && <span className="text-xs ml-1">(Limited)</span>}
                             </CardTitle>
-                            <CardDescription className="text-xs sm:text-sm mt-1 line-clamp-2">
+                            <CardDescription className="text-xs sm:text-sm mt-0.5 sm:mt-1 line-clamp-2">
                               {action.description}
                             </CardDescription>
                           </div>
                           {!isDisabled && (
-                            <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-all opacity-0 group-hover:opacity-100 translate-x-2 group-hover:translate-x-0" />
+                            <ArrowRight className="hidden sm:block w-4 h-4 text-muted-foreground group-hover:text-primary transition-all opacity-0 group-hover:opacity-100 translate-x-2 group-hover:translate-x-0" />
                           )}
                         </div>
                       </CardHeader>
@@ -389,7 +390,7 @@ export function DashboardOverview() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.3 }}
-                className="space-y-6 sm:space-y-8"
+                className="space-y-4 sm:space-y-6 lg:space-y-8"
               >
                 {/* Statistics Cards */}
                 <DashboardStats data={dashboardData?.stats} />
@@ -398,14 +399,14 @@ export function DashboardOverview() {
                 <DashboardIntegrations />
 
                 {/* Charts and Recent Activity */}
-                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 sm:gap-8">
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
                   {/* Charts - Takes 2 columns on xl screens, full width on smaller */}
                   <div className="xl:col-span-2 order-2 xl:order-1">
                     <DashboardCharts data={dashboardData?.charts} />
                   </div>
 
                   {/* Recent Documents and Alerts - Takes 1 column, shows first on mobile */}
-                  <div className="space-y-6 order-1 xl:order-2">
+                  <div className="space-y-4 sm:space-y-6 order-1 xl:order-2">
                     <DashboardRecentDocs data={dashboardData?.recentDocuments} />
                     <DashboardAlerts data={dashboardData?.alerts} />
                   </div>
@@ -419,15 +420,15 @@ export function DashboardOverview() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5 }}
-            className="mt-6 sm:mt-8 lg:mt-10"
+            className="mt-4 sm:mt-6 lg:mt-8"
           >
             <Card className="glass-card border border-border/50 bg-card/50 backdrop-blur-sm">
-              <CardContent className="p-4 sm:p-6">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
+              <CardContent className="p-3 sm:p-4 md:p-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 md:gap-6">
                     <div className="flex items-center gap-2">
                       <div className={`w-2 h-2 rounded-full flex-shrink-0 ${getSystemHealthColor(systemHealth)}`}></div>
-                      <span className="text-sm sm:text-base font-medium">
+                      <span className="text-xs sm:text-sm md:text-base font-medium">
                         System {getSystemStatusText(isSystemOnline, systemHealth)}
                       </span>
                       {systemHealth && systemHealth !== 'healthy' && (
@@ -438,7 +439,7 @@ export function DashboardOverview() {
                     </div>
                     <div className="flex items-center gap-2">
                       <TrendingUp className={cn(
-                        "w-4 h-4 flex-shrink-0",
+                        "w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0",
                         isSystemOnline ? "text-green-600" : "text-gray-500"
                       )} />
                       <span className="text-xs sm:text-sm text-muted-foreground">
@@ -448,8 +449,8 @@ export function DashboardOverview() {
                   </div>
                   <div className="flex items-center gap-2">
                     {isFallbackMode && (
-                      <Button variant="outline" size="sm" onClick={() => handleRefresh()}>
-                        <RefreshCw className="w-4 h-4 mr-2" />
+                      <Button variant="outline" size="sm" onClick={() => handleRefresh()} className="text-xs sm:text-sm h-8 sm:h-9">
+                        <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
                         Retry Connection
                       </Button>
                     )}
@@ -470,15 +471,15 @@ function DashboardStats({ data }: { readonly data?: DashboardStats }) {
     const skeletonStatCards = Array.from({ length: 4 }, (_, i) => `stat-skeleton-${i}`)
     
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
         {skeletonStatCards.map((id) => (
           <Card key={id} className="animate-pulse">
-            <CardHeader className="pb-3">
-              <div className="h-4 bg-muted rounded w-3/4"></div>
+            <CardHeader className="pb-2 sm:pb-3 p-4 sm:p-6">
+              <div className="h-3 sm:h-4 bg-muted rounded w-3/4"></div>
             </CardHeader>
-            <CardContent>
-              <div className="h-8 bg-muted rounded w-1/2 mb-2"></div>
-              <div className="h-3 bg-muted rounded w-full"></div>
+            <CardContent className="p-4 sm:p-6 pt-0">
+              <div className="h-6 sm:h-8 bg-muted rounded w-1/2 mb-2"></div>
+              <div className="h-2 sm:h-3 bg-muted rounded w-full"></div>
             </CardContent>
           </Card>
         ))}
@@ -518,7 +519,7 @@ function DashboardStats({ data }: { readonly data?: DashboardStats }) {
   ]
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
       {statCards.map((stat, index) => {
         const Icon = stat.icon
         return (
@@ -530,18 +531,18 @@ function DashboardStats({ data }: { readonly data?: DashboardStats }) {
           >
             <Card className="relative overflow-hidden">
               <div className={`absolute inset-0 bg-gradient-to-r ${stat.color} opacity-5`} />
-              <CardHeader className="pb-3">
+              <CardHeader className="pb-2 sm:pb-3 p-4 sm:p-6">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                  <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
                     {stat.title}
                   </CardTitle>
-                  <div className={`p-2 rounded-lg bg-gradient-to-r ${stat.color}`}>
-                    <Icon className="w-4 h-4 text-white" />
+                  <div className={`p-1.5 sm:p-2 rounded-lg bg-gradient-to-r ${stat.color}`}>
+                    <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold mb-1">{stat.value}</div>
+              <CardContent className="p-4 sm:p-6 pt-0">
+                <div className="text-xl sm:text-2xl font-bold mb-1">{stat.value}</div>
                 <div className="text-xs text-muted-foreground">
                   {stat.description}
                 </div>
@@ -558,12 +559,12 @@ function DashboardStats({ data }: { readonly data?: DashboardStats }) {
 function DashboardCharts({ data }: { readonly data?: any }) {
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Document Analytics</CardTitle>
-        <CardDescription>Overview of document processing and distribution</CardDescription>
+      <CardHeader className="p-4 sm:p-6">
+        <CardTitle className="text-base sm:text-lg md:text-xl">Document Analytics</CardTitle>
+        <CardDescription className="text-xs sm:text-sm">Overview of document processing and distribution</CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="h-64 flex items-center justify-center text-muted-foreground">
+      <CardContent className="p-4 sm:p-6">
+        <div className="h-48 sm:h-64 flex items-center justify-center text-muted-foreground text-xs sm:text-sm">
           Charts will be rendered here with the provided data
           {data && (
             <div className="text-xs mt-2">
@@ -580,31 +581,31 @@ function DashboardCharts({ data }: { readonly data?: any }) {
 function DashboardRecentDocs({ data }: { readonly data?: any[] }) {
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Recent Documents</CardTitle>
-        <CardDescription>Latest processed documents</CardDescription>
+      <CardHeader className="p-4 sm:p-6">
+        <CardTitle className="text-base sm:text-lg md:text-xl">Recent Documents</CardTitle>
+        <CardDescription className="text-xs sm:text-sm">Latest processed documents</CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-3">
+      <CardContent className="p-4 sm:p-6">
+        <div className="space-y-2 sm:space-y-3">
           {data && data.length > 0 ? (
             data.slice(0, 5).map((doc, index) => (
-              <div key={doc.id || index} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50">
-                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  <FileText className="w-4 h-4 text-primary" />
+              <div key={doc.id || index} className="flex items-center gap-2 sm:gap-3 p-2 rounded-lg hover:bg-muted/50">
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{doc.filename || 'Unknown Document'}</p>
-                  <p className="text-xs text-muted-foreground">{doc.department || 'No department'}</p>
+                  <p className="text-xs sm:text-sm font-medium truncate">{doc.filename || 'Unknown Document'}</p>
+                  <p className="text-xs text-muted-foreground truncate">{doc.department || 'No department'}</p>
                 </div>
-                <Badge variant="outline" className="text-xs">
+                <Badge variant="outline" className="text-xs flex-shrink-0">
                   {doc.status || 'Unknown'}
                 </Badge>
               </div>
             ))
           ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">No recent documents</p>
+            <div className="text-center py-6 sm:py-8 text-muted-foreground">
+              <FileText className="w-6 h-6 sm:w-8 sm:h-8 mx-auto mb-2 opacity-50" />
+              <p className="text-xs sm:text-sm">No recent documents</p>
             </div>
           )}
         </div>
@@ -733,23 +734,23 @@ function DashboardIntegrations() {
   if (integrationsLoading) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="w-5 h-5" />
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg md:text-xl">
+            <Settings className="w-4 h-4 sm:w-5 sm:h-5" />
             Document Integrations
           </CardTitle>
-          <CardDescription>External document sources and their sync status</CardDescription>
+          <CardDescription className="text-xs sm:text-sm">External document sources and their sync status</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+        <CardContent className="p-4 sm:p-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
             {Array.from({ length: 5 }).map((_, i) => (
               <div key={i} className="animate-pulse">
-                <div className="p-4 border rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-muted rounded-lg"></div>
-                    <div className="flex-1">
-                      <div className="h-4 bg-muted rounded w-3/4 mb-1"></div>
-                      <div className="h-3 bg-muted rounded w-1/2"></div>
+                <div className="p-3 sm:p-4 border rounded-lg">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 bg-muted rounded-lg"></div>
+                    <div className="flex-1 min-w-0">
+                      <div className="h-3 sm:h-4 bg-muted rounded w-3/4 mb-1"></div>
+                      <div className="h-2 sm:h-3 bg-muted rounded w-1/2"></div>
                     </div>
                   </div>
                 </div>
@@ -764,19 +765,19 @@ function DashboardIntegrations() {
   if (integrationsError) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="w-5 h-5" />
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg md:text-xl">
+            <Settings className="w-4 h-4 sm:w-5 sm:h-5" />
             Document Integrations
           </CardTitle>
-          <CardDescription>External document sources and their sync status</CardDescription>
+          <CardDescription className="text-xs sm:text-sm">External document sources and their sync status</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="text-center py-8 text-muted-foreground">
-            <AlertTriangle className="w-8 h-8 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">Failed to load integrations</p>
-            <Button variant="outline" size="sm" className="mt-2" onClick={() => router.push('/integrations')}>
-              <Settings className="w-4 h-4 mr-2" />
+        <CardContent className="p-4 sm:p-6">
+          <div className="text-center py-6 sm:py-8 text-muted-foreground">
+            <AlertTriangle className="w-6 h-6 sm:w-8 sm:h-8 mx-auto mb-2 opacity-50" />
+            <p className="text-xs sm:text-sm">Failed to load integrations</p>
+            <Button variant="outline" size="sm" className="mt-2 text-xs sm:text-sm" onClick={() => router.push('/integrations')}>
+              <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
               Manage Integrations
             </Button>
           </div>
@@ -797,16 +798,16 @@ function DashboardIntegrations() {
       transition={{ delay: 0.4 }}
     >
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
+        <CardHeader className="p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="w-5 h-5" />
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg md:text-xl">
+                <Settings className="w-4 h-4 sm:w-5 sm:h-5" />
                 Document Integrations
               </CardTitle>
-              <CardDescription>External document sources and their sync status</CardDescription>
+              <CardDescription className="text-xs sm:text-sm mt-1">External document sources and their sync status</CardDescription>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <Badge variant="outline" className="text-xs">
                 {activeIntegrations.length}/{totalIntegrations} Active
               </Badge>
@@ -814,17 +815,17 @@ function DashboardIntegrations() {
                 variant="outline" 
                 size="sm" 
                 onClick={() => router.push('/integrations')}
-                className="hidden sm:flex"
+                className="hidden sm:flex text-xs sm:text-sm h-8 sm:h-9"
               >
-                <Settings className="w-4 h-4 mr-2" />
+                <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
                 Manage
               </Button>
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 sm:p-6">
           {integrations && integrations.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
               {integrations.map((integration: any, index: number) => {
                 const Icon = getIntegrationIcon(integration.type)
                 const statusColor = getIntegrationStatusColor(integration.is_active, integration.last_sync)
@@ -845,25 +846,25 @@ function DashboardIntegrations() {
                         ? "border-primary/20 bg-gradient-to-br from-primary/5 to-transparent" 
                         : "opacity-60 hover:opacity-80"
                     )}>
-                      <CardContent className="p-4">
-                        <div className="flex items-center gap-3">
+                      <CardContent className="p-3 sm:p-4">
+                        <div className="flex items-center gap-2 sm:gap-3">
                           <div className="relative">
                             <div className={cn(
-                              "p-2 rounded-lg transition-colors",
+                              "p-1.5 sm:p-2 rounded-lg transition-colors",
                               integration.is_active 
                                 ? "bg-primary/10 text-primary" 
                                 : "bg-muted text-muted-foreground"
                             )}>
-                              <Icon className="w-4 h-4" />
+                              <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                             </div>
                             {/* Status indicator */}
                             <div className={cn(
-                              "absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-background",
+                              "absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full border-2 border-background",
                               statusColor
                             )}></div>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">
+                            <p className="text-xs sm:text-sm font-medium truncate">
                               {integration.name}
                             </p>
                             <p className="text-xs text-muted-foreground truncate">
@@ -878,11 +879,11 @@ function DashboardIntegrations() {
               })}
             </div>
           ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              <Settings className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">No integrations configured</p>
-              <Button variant="outline" size="sm" className="mt-2" onClick={() => router.push('/integrations')}>
-                <Settings className="w-4 h-4 mr-2" />
+            <div className="text-center py-6 sm:py-8 text-muted-foreground">
+              <Settings className="w-6 h-6 sm:w-8 sm:h-8 mx-auto mb-2 opacity-50" />
+              <p className="text-xs sm:text-sm">No integrations configured</p>
+              <Button variant="outline" size="sm" className="mt-2 text-xs sm:text-sm h-8 sm:h-9" onClick={() => router.push('/integrations')}>
+                <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
                 Set up Integrations
               </Button>
             </div>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { cloudinaryService } from '@/lib/cloudinary';
 
 export async function POST(request: NextRequest) {
   console.log('=== UPLOAD TEST API CALLED ===');
@@ -100,6 +101,30 @@ export async function POST(request: NextRequest) {
         error: 'Database test failed',
         step: 6,
         details: dbError instanceof Error ? dbError.message : 'Unknown database error'
+      }, { status: 500 });
+    }
+
+    // Step 7: Test Cloudinary connection
+    console.log('Step 7: Testing Cloudinary connection...');
+    try {
+      const connectionTest = await cloudinaryService.testConnection();
+      if (!connectionTest.connected) {
+        return NextResponse.json({
+          success: false,
+          error: 'Cloudinary not connected',
+          details: connectionTest,
+          timestamp: new Date().toISOString()
+        }, { status: 500 });
+      }
+
+      console.log('Step 7: Cloudinary connection:', connectionTest.connected ? 'SUCCESS' : 'FAILED');
+    } catch (cloudinaryError) {
+      console.error('Step 7: Cloudinary test failed:', cloudinaryError);
+      return NextResponse.json({
+        success: false,
+        error: 'Cloudinary test failed',
+        step: 7,
+        details: cloudinaryError instanceof Error ? cloudinaryError.message : 'Unknown Cloudinary error'
       }, { status: 500 });
     }
     

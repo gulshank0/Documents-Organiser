@@ -51,6 +51,28 @@ class CloudinaryService {
     options: CloudinaryUploadOptions = {}
   ): Promise<CloudinaryUploadResult> {
     try {
+      // Add comprehensive validation before attempting upload
+      if (!buffer || buffer.length === 0) {
+        throw new Error('Buffer is empty or invalid');
+      }
+
+      // Check Cloudinary configuration
+      if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+        throw new Error('Cloudinary configuration is incomplete. Missing: ' + 
+          [
+            !process.env.CLOUDINARY_CLOUD_NAME ? 'CLOUDINARY_CLOUD_NAME' : null,
+            !process.env.CLOUDINARY_API_KEY ? 'CLOUDINARY_API_KEY' : null,
+            !process.env.CLOUDINARY_API_SECRET ? 'CLOUDINARY_API_SECRET' : null
+          ].filter(Boolean).join(', ')
+        );
+      }
+
+      console.log('Cloudinary upload starting:', {
+        bufferSize: buffer.length,
+        folder: options.folder ? `${this.baseFolder}/${options.folder}` : this.baseFolder,
+        resourceType: options.resource_type || 'auto'
+      });
+
       const uploadOptions = {
         resource_type: 'auto' as const,
         folder: options.folder ? `${this.baseFolder}/${options.folder}` : this.baseFolder,
@@ -61,22 +83,71 @@ class CloudinaryService {
       };
 
       const result = await new Promise<CloudinaryUploadResult>((resolve, reject) => {
-        cloudinary.uploader.upload_stream(
+        const uploadStream = cloudinary.uploader.upload_stream(
           uploadOptions,
           (error, result) => {
             if (error) {
+              console.error('Cloudinary upload stream error:', {
+                message: error.message,
+                http_code: error.http_code,
+                error: error.error,
+                stack: error.stack
+              });
               reject(error);
+            } else if (!result) {
+              console.error('Cloudinary upload returned no result');
+              reject(new Error('Upload completed but no result returned'));
             } else {
+              console.log('Cloudinary upload successful:', {
+                public_id: result.public_id,
+                secure_url: result.secure_url,
+                bytes: result.bytes,
+                format: result.format
+              });
               resolve(result as CloudinaryUploadResult);
             }
           }
-        ).end(buffer);
+        );
+
+        // Handle stream errors
+        uploadStream.on('error', (streamError) => {
+          console.error('Cloudinary upload stream error:', streamError);
+          reject(streamError);
+        });
+
+        // End the stream with the buffer
+        uploadStream.end(buffer);
       });
 
       return result;
     } catch (error) {
-      console.error('Cloudinary upload error:', error);
-      throw new Error(`Failed to upload to Cloudinary: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Cloudinary upload error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        http_code: error && typeof error === 'object' && 'http_code' in error ? (error as any).http_code : undefined,
+        error_details: error && typeof error === 'object' && 'error' in error ? (error as any).error : undefined,
+        name: error instanceof Error ? error.name : undefined,
+        bufferSize: buffer?.length || 0,
+        cloudinaryConfigured: this.isConfigured()
+      });
+
+      // Provide more specific error messages based on error type
+      let errorMessage = 'Unknown error';
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (error && typeof error === 'object') {
+        const cloudinaryError = error as any;
+        if (cloudinaryError.http_code && cloudinaryError.error) {
+          errorMessage = `HTTP ${cloudinaryError.http_code}: ${cloudinaryError.error.message || cloudinaryError.error}`;
+        } else if (cloudinaryError.message) {
+          errorMessage = cloudinaryError.message;
+        } else {
+          errorMessage = JSON.stringify(error);
+        }
+      }
+
+      throw new Error(`Failed to upload to Cloudinary: ${errorMessage}`);
     }
   }
 
@@ -327,6 +398,49 @@ class CloudinaryService {
       return match ? match[1] : null;
     } catch {
       return null;
+    }
+  }
+
+  /**
+   * Test Cloudinary connection and configuration
+   */
+  async testConnection(): Promise<{
+    configured: boolean;
+    connected: boolean;
+    error?: string;
+    details?: any;
+  }> {
+    try {
+      // Check if configured
+      const configured = this.isConfigured();
+      if (!configured) {
+        return {
+          configured: false,
+          connected: false,
+          error: 'Cloudinary not configured - missing environment variables'
+        };
+      }
+
+      // Try to ping Cloudinary API
+      const result = await cloudinary.api.ping();
+      
+      return {
+        configured: true,
+        connected: true,
+        details: {
+          status: result.status,
+          cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+          baseFolder: this.baseFolder
+        }
+      };
+    } catch (error) {
+      console.error('Cloudinary connection test failed:', error);
+      return {
+        configured: this.isConfigured(),
+        connected: false,
+        error: error instanceof Error ? error.message : 'Connection test failed',
+        details: error
+      };
     }
   }
 

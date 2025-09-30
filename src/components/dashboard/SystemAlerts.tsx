@@ -48,13 +48,13 @@ export default function SystemAlerts() {
   const getAlertIcon = (type: string) => {
     switch (type) {
       case 'error':
-        return <XCircleIcon className="w-5 h-5 text-red-500 drop-shadow-sm" />;
+        return <XCircleIcon className="w-4 h-4 sm:w-5 sm:h-5 text-red-500 drop-shadow-sm" />;
       case 'warning':
-        return <ExclamationTriangleIcon className="w-5 h-5 text-amber-500 drop-shadow-sm" />;
+        return <ExclamationTriangleIcon className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500 drop-shadow-sm" />;
       case 'success':
-        return <CheckCircleIcon className="w-5 h-5 text-green-500 drop-shadow-sm" />;
+        return <CheckCircleIcon className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 drop-shadow-sm" />;
       default:
-        return <InformationCircleIcon className="w-5 h-5 text-blue-500 drop-shadow-sm" />;
+        return <InformationCircleIcon className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 drop-shadow-sm" />;
     }
   };
 
@@ -74,24 +74,24 @@ export default function SystemAlerts() {
   if (loading) {
     return (
       <Card className="w-full bg-gradient-to-br from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-800/50 border-0 shadow-lg">
-        <CardHeader className="pb-4">
+        <CardHeader className="pb-3 sm:pb-4 p-4 sm:p-6">
           <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <div className="h-6 w-32 bg-gradient-to-r from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-600 rounded-lg animate-pulse"></div>
-              <div className="h-4 w-24 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></div>
+            <div className="space-y-1 flex-1">
+              <div className="h-5 sm:h-6 w-28 sm:w-32 bg-gradient-to-r from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-600 rounded-lg animate-pulse"></div>
+              <div className="h-3 sm:h-4 w-20 sm:w-24 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></div>
             </div>
-            <div className="w-16 h-6 bg-slate-200 dark:bg-slate-700 rounded-full animate-pulse"></div>
+            <div className="w-14 sm:w-16 h-5 sm:h-6 bg-slate-200 dark:bg-slate-700 rounded-full animate-pulse"></div>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
+        <CardContent className="p-4 sm:p-6">
+          <div className="space-y-2 sm:space-y-3">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="p-4 rounded-xl bg-slate-100/50 dark:bg-slate-800/50 animate-pulse">
-                <div className="flex items-start gap-3">
-                  <div className="w-5 h-5 bg-slate-200 dark:bg-slate-700 rounded-full"></div>
-                  <div className="flex-1 space-y-2">
-                    <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4"></div>
-                    <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-1/2"></div>
+              <div key={i} className="p-3 sm:p-4 rounded-lg sm:rounded-xl bg-slate-100/50 dark:bg-slate-800/50 animate-pulse">
+                <div className="flex items-start gap-2 sm:gap-3">
+                  <div className="w-4 h-4 sm:w-5 sm:h-5 bg-slate-200 dark:bg-slate-700 rounded-full flex-shrink-0"></div>
+                  <div className="flex-1 space-y-2 min-w-0">
+                    <div className="h-3 sm:h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4"></div>
+                    <div className="h-2 sm:h-3 bg-slate-200 dark:bg-slate-700 rounded w-1/2"></div>
                   </div>
                 </div>
               </div>
@@ -104,45 +104,45 @@ export default function SystemAlerts() {
 
   return (
     <Card className="w-full bg-gradient-to-br from-white via-slate-50/50 to-white dark:from-slate-900 dark:via-slate-800/50 dark:to-slate-900 border-0 shadow-lg hover:shadow-xl transition-all duration-300">
-      <CardHeader className="pb-4">
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
+      <CardHeader className="pb-3 sm:pb-4 p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="space-y-0.5 sm:space-y-1">
             <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-gradient-to-r from-orange-100 to-red-100 dark:from-orange-900/30 dark:to-red-900/30 rounded-lg">
-                <BellIcon className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+              <div className="p-1 sm:p-1.5 bg-gradient-to-r from-orange-100 to-red-100 dark:from-orange-900/30 dark:to-red-900/30 rounded-lg">
+                <BellIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-orange-600 dark:text-orange-400" />
               </div>
-              <CardTitle className="text-xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">
+              <CardTitle className="text-base sm:text-lg md:text-xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">
                 System Alerts
               </CardTitle>
             </div>
-            <CardDescription className="text-sm text-muted-foreground ml-8">
+            <CardDescription className="text-xs sm:text-sm text-muted-foreground ml-0 sm:ml-8">
               Real-time system notifications and warnings
             </CardDescription>
           </div>
           <Badge 
             variant={alerts.length > 0 ? "destructive" : "secondary"} 
-            className="px-3 py-1 text-xs font-medium rounded-full"
+            className="px-2 sm:px-3 py-0.5 sm:py-1 text-xs font-medium rounded-full w-fit"
           >
             {alerts.length} {alerts.length === 1 ? 'alert' : 'alerts'}
           </Badge>
         </div>
       </CardHeader>
 
-      <CardContent className="pt-0">
-        <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent">
+      <CardContent className="pt-0 p-4 sm:p-6">
+        <div className="space-y-2 sm:space-y-3 max-h-80 sm:max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent">
           {alerts.length === 0 ? (
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ type: "spring", duration: 0.5 }}
-              className="text-center py-12"
+              className="text-center py-8 sm:py-12"
             >
-              <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-green-100 via-emerald-50 to-green-100 dark:from-green-900/20 dark:via-green-900/10 dark:to-green-900/20 rounded-full flex items-center justify-center shadow-lg">
-                <CheckCircleIcon className="w-10 h-10 text-green-500" />
+              <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-4 sm:mb-6 bg-gradient-to-br from-green-100 via-emerald-50 to-green-100 dark:from-green-900/20 dark:via-green-900/10 dark:to-green-900/20 rounded-full flex items-center justify-center shadow-lg">
+                <CheckCircleIcon className="w-8 h-8 sm:w-10 sm:h-10 text-green-500" />
               </div>
-              <h4 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">All Systems Operational</h4>
-              <p className="text-gray-600 dark:text-gray-400 mb-2">No active alerts or warnings</p>
-              <p className="text-sm text-gray-500 dark:text-gray-500">System is running smoothly</p>
+              <h4 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">All Systems Operational</h4>
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-1 sm:mb-2">No active alerts or warnings</p>
+              <p className="text-xs text-gray-500 dark:text-gray-500">System is running smoothly</p>
             </motion.div>
           ) : (
             <AnimatePresence>
@@ -156,41 +156,41 @@ export default function SystemAlerts() {
                   className="group"
                 >
                   <div
-                    className={`relative p-4 rounded-xl border transition-all duration-300 hover:shadow-md ${getAlertStyles(alert.type)}`}
+                    className={`relative p-3 sm:p-4 rounded-lg sm:rounded-xl border transition-all duration-300 hover:shadow-md ${getAlertStyles(alert.type)}`}
                   >
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent dark:via-white/5 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl"></div>
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent dark:via-white/5 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg sm:rounded-xl"></div>
                     
-                    <div className="relative flex items-start gap-3">
+                    <div className="relative flex items-start gap-2 sm:gap-3">
                       <div className="flex-shrink-0 mt-0.5">
-                        <div className="p-1 bg-white/50 dark:bg-slate-800/50 rounded-lg backdrop-blur-sm">
+                        <div className="p-0.5 sm:p-1 bg-white/50 dark:bg-slate-800/50 rounded-lg backdrop-blur-sm">
                           {getAlertIcon(alert.type)}
                         </div>
                       </div>
                       
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-gray-900 dark:text-gray-100 font-medium leading-relaxed">
+                        <p className="text-xs sm:text-sm text-gray-900 dark:text-gray-100 font-medium leading-relaxed">
                           {alert.message}
                         </p>
                         
-                        <div className="flex items-center justify-between mt-3 gap-4">
-                          <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-2 sm:mt-3 gap-2 sm:gap-4">
+                          <div className="flex items-center gap-1.5 sm:gap-2 text-xs text-gray-500 dark:text-gray-400">
                             <ClockIcon className="w-3 h-3" />
                             <span>{formatDate(alert.timestamp)}</span>
                           </div>
                           
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                             {alert.document_id && (
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:text-blue-300 dark:hover:bg-blue-950/20"
+                                className="h-6 sm:h-7 px-1.5 sm:px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:text-blue-300 dark:hover:bg-blue-950/20"
                               >
                                 Doc #{alert.document_id}
                               </Button>
                             )}
                             <Badge 
                               variant="outline" 
-                              className={`text-xs px-2 py-0.5 rounded-full border-current ${
+                              className={`text-xs px-1.5 sm:px-2 py-0.5 rounded-full border-current ${
                                 alert.type === 'error' ? 'text-red-600 dark:text-red-400' :
                                 alert.type === 'warning' ? 'text-amber-600 dark:text-amber-400' :
                                 alert.type === 'success' ? 'text-green-600 dark:text-green-400' :
@@ -215,9 +215,9 @@ export default function SystemAlerts() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5 }}
-            className="mt-6 pt-4 border-t border-slate-200/50 dark:border-slate-700/50"
+            className="mt-4 sm:mt-6 pt-3 sm:pt-4 border-t border-slate-200/50 dark:border-slate-700/50"
           >
-            <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center sm:justify-between">
               <div className="text-xs text-gray-500 dark:text-gray-400">
                 Last updated: {new Date().toLocaleTimeString()}
               </div>
@@ -225,14 +225,14 @@ export default function SystemAlerts() {
                 <Button 
                   variant="outline" 
                   size="sm"
-                  className="text-xs hover:bg-blue-50 dark:hover:bg-blue-950/20"
+                  className="text-xs h-7 sm:h-8 hover:bg-blue-50 dark:hover:bg-blue-950/20 flex-1 sm:flex-initial"
                 >
                   Mark All Read
                 </Button>
                 <Button 
                   variant="outline" 
                   size="sm"
-                  className="text-xs hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                  className="text-xs h-7 sm:h-8 hover:bg-slate-50 dark:hover:bg-slate-800/50 flex-1 sm:flex-initial"
                 >
                   View History →
                 </Button>
