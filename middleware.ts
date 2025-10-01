@@ -1,102 +1,130 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import { getToken } from "next-auth/jwt"
 
-// Simple token verification without JWT dependency to avoid issues
-function isValidAuthToken(token: string): boolean {
+// Enhanced token verification with NextAuth support
+async function verifyAuthentication(request: NextRequest): Promise<boolean> {
   try {
-    // Basic token validation - check if it exists and has proper format
-    if (!token || token.length < 10) {
+    // Check NextAuth JWT token first
+    const nextAuthToken = await getToken({ 
+      req: request as any, 
+      secret: process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET 
+    });
+    
+    if (nextAuthToken?.email) {
+      return true;
+    }
+
+    // Check custom auth token (for email/password login)
+    const authTokenFromCookie = request.cookies.get('auth-token')?.value;
+    const authTokenFromHeader = request.headers.get('Authorization')?.replace('Bearer ', '');
+    const customToken = authTokenFromCookie || authTokenFromHeader;
+
+    if (!customToken || customToken.length < 10) {
       return false;
     }
-    
-    // For JWT tokens, basic structure check
-    if (token.includes('.')) {
-      const parts = token.split('.');
+
+    // Basic JWT structure validation
+    if (customToken.includes('.')) {
+      const parts = customToken.split('.');
       if (parts.length !== 3) {
         return false;
       }
+      
+      // Additional validation: check if token is not expired (basic check)
+      try {
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+        if (payload.exp && payload.exp * 1000 < Date.now()) {
+          return false; // Token expired
+        }
+      } catch {
+        return false;
+      }
     }
-    
+
     return true;
   } catch (error) {
-    console.warn('Token validation error:', error);
+    console.error('[MIDDLEWARE] Authentication verification error:', error);
     return false;
   }
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const timestamp = new Date().toISOString();
   
-  // Always log middleware execution
-  console.log(`[${timestamp}] MIDDLEWARE: Processing request for ${pathname}`);
+  console.log(`[${timestamp}] MIDDLEWARE: Processing ${request.method} request for ${pathname}`);
 
-  // Public routes that don't require authentication
+  // Define route categories
   const publicRoutes = ['/', '/login', '/register'];
-  const apiAuthRoutes = ['/api/auth'];
-  const staticRoutes = ['/_next', '/favicon.ico', '/public'];
+  const apiAuthRoutes = ['/api/auth/login', '/api/auth/register', '/api/auth/logout'];
+  const staticAssets = ['/_next', '/favicon.ico', '/logo.png', '/public'];
   
-  // Check if the current path is a public route
+  // Check route type
   const isPublicRoute = publicRoutes.includes(pathname);
   const isApiAuthRoute = apiAuthRoutes.some(route => pathname.startsWith(route));
-  const isStaticRoute = staticRoutes.some(route => pathname.startsWith(route));
+  const isStaticAsset = staticAssets.some(asset => pathname.startsWith(asset));
   
-  console.log(`[${timestamp}] Route type - Public: ${isPublicRoute}, API Auth: ${isApiAuthRoute}, Static: ${isStaticRoute}`);
-  
-  // Allow access to public routes, auth API routes, and static files
-  if (isPublicRoute || isApiAuthRoute || isStaticRoute) {
-    console.log(`[${timestamp}] ALLOWING: Public/Auth/Static route access`);
+  // Allow static assets and public API routes without authentication
+  if (isStaticAsset) {
     return NextResponse.next();
   }
 
-  // Get authentication token from cookies or Authorization header
-  const authTokenFromCookie = request.cookies.get('auth-token')?.value;
-  const authTokenFromHeader = request.headers.get('Authorization')?.replace('Bearer ', '');
-  const authToken = authTokenFromCookie || authTokenFromHeader;
-
-  console.log(`[${timestamp}] Auth token check - Cookie: ${!!authTokenFromCookie}, Header: ${!!authTokenFromHeader}`);
-
-  // If no token is found, redirect to login page
-  if (!authToken) {
-    console.log(`[${timestamp}] BLOCKING: No auth token found, redirecting to login`);
-    const url = request.nextUrl.clone();
-    url.pathname = '/login';
-    return NextResponse.redirect(url);
+  // Allow public API auth routes (login, register, etc.)
+  if (isApiAuthRoute) {
+    console.log(`[${timestamp}] ALLOWING: API auth route ${pathname}`);
+    return NextResponse.next();
   }
 
-  // Basic token validation
-  const isValidToken = isValidAuthToken(authToken);
-  console.log(`[${timestamp}] Token validation result: ${isValidToken}`);
+  // Verify authentication
+  const isAuthenticated = await verifyAuthentication(request);
   
-  // If token is invalid, clear cookie and redirect to login
-  if (!isValidToken) {
-    console.log(`[${timestamp}] BLOCKING: Invalid token, redirecting to login`);
-    const url = request.nextUrl.clone();
-    url.pathname = '/login';
-    const response = NextResponse.redirect(url);
+  console.log(`[${timestamp}] Authentication status: ${isAuthenticated ? 'AUTHENTICATED' : 'UNAUTHENTICATED'}`);
+
+  // Handle unauthenticated users
+  if (!isAuthenticated) {
+    // If accessing protected route, redirect to home page
+    if (!isPublicRoute) {
+      console.log(`[${timestamp}] BLOCKING: Unauthenticated access to ${pathname}, redirecting to /`);
+      const url = request.nextUrl.clone();
+      url.pathname = '/';
+      url.searchParams.set('redirect', pathname); // Save intended destination
+      
+      const response = NextResponse.redirect(url);
+      
+      // Clear any invalid tokens
+      response.cookies.set('auth-token', '', {
+        path: '/',
+        expires: new Date(0),
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax'
+      });
+      
+      return response;
+    }
     
-    // Clear the invalid auth token cookie
-    response.cookies.set('auth-token', '', {
-      path: '/',
-      expires: new Date(0),
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax'
-    });
-    
-    return response;
+    // Allow access to public routes
+    console.log(`[${timestamp}] ALLOWING: Public route ${pathname}`);
+    return NextResponse.next();
   }
 
-  // For authenticated users trying to access login/register, redirect to dashboard
-  if (isValidToken && (pathname === '/login' || pathname === '/register')) {
-    console.log(`[${timestamp}] REDIRECTING: Authenticated user from auth page to dashboard`);
-    const url = request.nextUrl.clone();
-    url.pathname = '/dashboard';
-    return NextResponse.redirect(url);
+  // Handle authenticated users
+  if (isAuthenticated) {
+    // Redirect authenticated users away from login/register pages
+    if (pathname === '/login' || pathname === '/register') {
+      console.log(`[${timestamp}] REDIRECTING: Authenticated user from ${pathname} to /dashboard`);
+      const url = request.nextUrl.clone();
+      url.pathname = '/dashboard';
+      return NextResponse.redirect(url);
+    }
+
+    // Allow access to protected routes for authenticated users
+    console.log(`[${timestamp}] ALLOWING: Authenticated access to ${pathname}`);
+    return NextResponse.next();
   }
 
-  console.log(`[${timestamp}] ALLOWING: Valid token access to protected route`);
-  // Allow the request to continue for protected routes with valid token
+  // Fallback: allow the request
   return NextResponse.next();
 }
 
@@ -107,7 +135,7 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files) 
      * - favicon.ico (favicon file)
-     * - public folder files
+     * - Static assets (png, svg, ico, css, js)
      */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.svg$|.*\\.ico$|.*\\.css$|.*\\.js$).*)',
   ],

@@ -56,7 +56,13 @@ function LoginForm() {
       if (result?.error) {
         setError('Invalid email or password');
       } else if (result?.ok) {
-        router.push('/dashboard');
+        // Check for redirect parameter
+        const redirectTo = searchParams.get('redirect');
+        if (redirectTo && redirectTo !== '/login' && redirectTo !== '/register') {
+          router.push(redirectTo);
+        } else {
+          router.push('/dashboard');
+        }
         router.refresh();
       }
     } catch (error) {
@@ -72,8 +78,14 @@ function LoginForm() {
     setError('');
 
     try {
+      // Get redirect parameter for post-login navigation
+      const redirectTo = searchParams.get('redirect');
+      const callbackUrl = redirectTo && redirectTo !== '/login' && redirectTo !== '/register' 
+        ? redirectTo 
+        : '/dashboard';
+
       const result = await signIn('google', {
-        callbackUrl: '/dashboard',
+        callbackUrl,
         redirect: false,
       });
 

@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
-import { Navigation } from '@/components/ui/Navigation'
 import { QueryProvider } from './provider'
 import { ThemeProvider } from '@/contexts/ThemeContext'
 import { ConditionalNavigation } from '@/components/ui/ConditionalNavigation'
@@ -87,14 +86,36 @@ export default function RootLayout({
 }
 
 // Component to conditionally render main content with proper positioning
-function ConditionalMainContent({ children }: { children: React.ReactNode }) {
+function ConditionalMainContent({ children }: Readonly<{ children: React.ReactNode }>) {
   'use client';
   
   const pathname = typeof window !== 'undefined' ? window.location.pathname : '/';
   
-  // Pages that don't need navigation spacing
+  // Pages that don't need navigation spacing (including 404 pages)
   const excludedPages = ['/', '/login', '/register'];
-  const shouldExcludeSpacing = excludedPages.includes(pathname);
+  
+  // Known routes in the application
+  const knownRoutes = [
+    '/',
+    '/login',
+    '/register',
+    '/dashboard',
+    '/documents',
+    '/upload',
+    '/search',
+    '/profile',
+    '/integrations'
+  ];
+  
+  // Check if pathname matches any known route
+  const isKnownRoute = knownRoutes.some(route => 
+    pathname === route || pathname.startsWith(`${route}/`)
+  );
+  
+  // Check if it's a 404 page (unknown route)
+  const is404Page = !isKnownRoute;
+  
+  const shouldExcludeSpacing = excludedPages.includes(pathname) || is404Page;
   
   if (shouldExcludeSpacing) {
     return <>{children}</>;
