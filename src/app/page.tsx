@@ -145,7 +145,7 @@ export default function HomePage() {
                 <h1 className="text-lg sm:text-xl md:text-2xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
                   Documents Organizer
                 </h1>
-                <p className="text-[10px] sm:text-xs text-muted-foreground hidden sm:block">Intelligent Document Management</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground hidden sm:block">Document Management</p>
               </div>
             </div>
             <div className="flex space-x-1.5 sm:space-x-2 md:space-x-3">
