@@ -6,6 +6,7 @@ import { checkStorageQuota } from '@/lib/auth';
 import { SUPPORTED_FILE_TYPES, MAX_FILE_SIZE } from '@/types';
 import { PrismaClient } from '@prisma/client';
 import { cloudinaryService } from '@/lib/cloudinary';
+import { wsNotifier } from '@/lib/websocket-server';
 
 const prisma = new PrismaClient();
 
@@ -442,6 +443,14 @@ export async function POST(request: NextRequest) {
       organizationId
     });
 
+    // Send WebSocket notification for upload success
+    wsNotifier.notifyDocumentUploaded(user.id, {
+      documentId: createdDocument.id,
+      filename: file.name,
+      fileSize: file.size,
+      channel: channel
+    }).catch(err => console.warn('Failed to send upload notification:', err));
+
     return NextResponse.json(processingResult);
 
   } catch (error: any) {
@@ -506,6 +515,16 @@ async function processDocumentInBackground(documentId: string, cloudinaryUrl: st
     
     const db = getDatabase();
     
+    // Get the document to find the user ID
+    const document = await db.client.document.findUnique({
+      where: { id: documentId }
+    });
+    
+    if (!document) {
+      console.error(`Document ${documentId} not found for processing`);
+      return;
+    }
+    
     // Update document status to PROCESSING
     await db.client.document.update({
       where: { id: documentId },
@@ -536,6 +555,14 @@ async function processDocumentInBackground(documentId: string, cloudinaryUrl: st
         await db.storeDocumentEmbedding(documentId, extractedText);
         
         console.log(`Successfully processed document ${documentId} with ${extractedText.length} characters extracted`);
+        
+        // Send WebSocket notification for successful processing
+        wsNotifier.notifyDocumentProcessed(document.userId, {
+          documentId: documentId,
+          filename: filename,
+          status: 'success',
+          extractedText: true
+        }).catch(err => console.warn('Failed to send processing notification:', err));
       } else {
         // No text extracted but processing completed
         await db.client.document.update({
@@ -544,6 +571,14 @@ async function processDocumentInBackground(documentId: string, cloudinaryUrl: st
         });
         
         console.log(`Document ${documentId} processed but no text extracted`);
+        
+        // Send WebSocket notification for completion without text
+        wsNotifier.notifyDocumentProcessed(document.userId, {
+          documentId: documentId,
+          filename: filename,
+          status: 'success',
+          extractedText: false
+        }).catch(err => console.warn('Failed to send processing notification:', err));
       }
     } catch (textError) {
       console.error(`Text extraction failed for document ${documentId}:`, textError);
@@ -556,6 +591,14 @@ async function processDocumentInBackground(documentId: string, cloudinaryUrl: st
           errorMessage: textError instanceof Error ? textError.message : 'Text extraction failed'
         }
       });
+      
+      // Send WebSocket notification for processing failure
+      wsNotifier.notifyDocumentProcessed(document.userId, {
+        documentId: documentId,
+        filename: filename,
+        status: 'failed',
+        extractedText: false
+      }).catch(err => console.warn('Failed to send processing notification:', err));
     }
 
   } catch (error) {
@@ -564,6 +607,10 @@ async function processDocumentInBackground(documentId: string, cloudinaryUrl: st
     // Update status to FAILED
     try {
       const db = getDatabase();
+      const document = await db.client.document.findUnique({
+        where: { id: documentId }
+      });
+      
       await db.client.document.update({
         where: { id: documentId },
         data: { 
@@ -571,6 +618,16 @@ async function processDocumentInBackground(documentId: string, cloudinaryUrl: st
           errorMessage: error instanceof Error ? error.message : 'Background processing failed'
         }
       });
+      
+      // Send WebSocket notification for processing failure
+      if (document) {
+        wsNotifier.notifyDocumentProcessed(document.userId, {
+          documentId: documentId,
+          filename: filename,
+          status: 'failed',
+          extractedText: false
+        }).catch(err => console.warn('Failed to send processing notification:', err));
+      }
     } catch (updateError) {
       console.error(`Failed to update document status for ${documentId}:`, updateError);
     }

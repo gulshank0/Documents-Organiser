@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useNotificationStore } from '@/lib/notifications'
 import { useWebSocket, webSocketService } from '@/lib/websocket'
 import { cn, formatDateTime } from '@/lib/utils'
+import { useSession } from '@/hooks/useSession'
 
 const getNotificationIcon = (type: string) => {
   switch (type) {
@@ -57,15 +58,21 @@ export function NotificationPanel() {
     clearAll
   } = useNotificationStore()
   
-  const { connect, getConnectionState } = useWebSocket()
+  const { connect, setUserId, getConnectionState } = useWebSocket()
   const [isOpen, setIsOpen] = React.useState(false)
+  const { user } = useSession()
 
   useEffect(() => {
     // Only attempt to connect if WebSocket is enabled
     if (webSocketService.isWebSocketEnabled()) {
       connect()
+      
+      // Authenticate with user ID when available
+      if (user?.id) {
+        setUserId(user.id)
+      }
     }
-  }, [connect])
+  }, [connect, setUserId, user?.id])
 
   const connectionState = getConnectionState()
   const isWebSocketEnabled = webSocketService.isWebSocketEnabled()

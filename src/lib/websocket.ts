@@ -11,6 +11,7 @@ class WebSocketService {
   private shouldConnect = true
   private connectionState: 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'failed' = 'disconnected'
   private isEnabled: boolean
+  private userId: string | null = null
 
   constructor() {
     this.url = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8001'
@@ -20,6 +21,15 @@ class WebSocketService {
     
     if (!this.isEnabled) {
       console.log('WebSocket is disabled. Set NEXT_PUBLIC_ENABLE_WEBSOCKET=true to enable it.')
+    }
+  }
+
+  // Set user ID for authenticated notifications
+  setUserId(userId: string) {
+    this.userId = userId
+    // If already connected, send authentication message
+    if (this.ws?.readyState === WebSocket.OPEN && userId) {
+      this.ws.send(JSON.stringify({ type: 'authenticate', userId }))
     }
   }
 
@@ -60,6 +70,11 @@ class WebSocketService {
       useNotificationStore.getState().setConnectionStatus(true)
       this.reconnectAttempts = 0
       this.startHeartbeat()
+      
+      // Authenticate if user ID is set
+      if (this.userId) {
+        this.ws?.send(JSON.stringify({ type: 'authenticate', userId: this.userId }))
+      }
     }
 
     this.ws.onmessage = (event) => {
@@ -108,6 +123,10 @@ class WebSocketService {
     const { addNotification } = useNotificationStore.getState()
 
     switch (data.type) {
+      case 'connected':
+        console.log('WebSocket server connection confirmed:', data.payload.message)
+        break
+        
       case 'notification':
         addNotification({
           type: data.payload.type || 'info',
@@ -116,13 +135,23 @@ class WebSocketService {
           persistent: data.payload.persistent,
         })
         break
-      case 'document_processed':
+        
+      case 'document_uploaded':
         addNotification({
           type: 'success',
-          title: 'Document Processed',
-          message: `Document "${data.payload.filename}" has been successfully processed`,
+          title: data.payload.title || 'Document Uploaded',
+          message: data.payload.message,
         })
         break
+        
+      case 'document_processed':
+        addNotification({
+          type: data.payload.type || 'success',
+          title: data.payload.title || 'Document Processed',
+          message: data.payload.message,
+        })
+        break
+        
       case 'system_alert':
         addNotification({
           type: data.payload.severity === 'error' ? 'error' : 'warning',
@@ -131,9 +160,11 @@ class WebSocketService {
           persistent: data.payload.severity === 'error',
         })
         break
+        
       case 'pong':
         // Handle heartbeat response
         break
+        
       default:
         console.log('Unknown message type:', data.type)
     }
@@ -270,6 +301,7 @@ export function useWebSocket() {
     disable: () => webSocketService.disable(),
     enable: () => webSocketService.enable(),
     send: (data: any) => webSocketService.send(data),
+    setUserId: (userId: string) => webSocketService.setUserId(userId),
     getConnectionState: () => webSocketService.getConnectionState(),
     isConnected,
   }

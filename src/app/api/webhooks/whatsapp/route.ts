@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/database';
 import crypto from 'crypto';
+import { wsNotifier } from '@/lib/websocket-server';
 
 // WhatsApp Business API types
 interface WhatsAppWebhookPayload {
@@ -365,6 +366,16 @@ export async function POST(request: NextRequest) {
               }
             }
           });
+          
+          // Send WebSocket notification for integration upload
+          wsNotifier.notifyIntegrationUpload(integration.userId, {
+            source: 'whatsapp',
+            documentsCount: documentsProcessed.length,
+            documents: documentsProcessed.map(d => ({
+              id: d.id,
+              filename: d.filename
+            }))
+          }).catch(err => console.warn('Failed to send integration notification:', err));
         }
       }
     }

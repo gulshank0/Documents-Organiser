@@ -119,20 +119,85 @@ export default function IntegrationsPage() {
       });
 
       if (response.ok) {
-        const newIntegration = await response.json();
+        const result = await response.json();
+        const newIntegration = result.data || result;
         setIntegrations(prev => [...prev, newIntegration]);
         setShowAddModal(false);
         setSelectedIntegrationType(null);
         setIntegrationForm({ name: '', settings: {} });
-        toast.success('Integration added successfully! Configure it to start ingesting documents.');
+        
+        // For OAuth-based integrations, initiate OAuth flow
+        if (['GMAIL', 'GOOGLE_DRIVE', 'OUTLOOK', 'TEAMS', 'DROPBOX', 'SLACK'].includes(selectedIntegrationType)) {
+          await initiateOAuthFlow(newIntegration.id, selectedIntegrationType);
+        } else if (selectedIntegrationType === 'TELEGRAM') {
+          // For Telegram, setup webhook
+          await setupTelegramWebhook(newIntegration.id);
+        } else {
+          toast.success('Integration added successfully!');
+          fetchIntegrations();
+        }
       } else {
         const error = await response.json();
-        toast.error(error.message || 'Failed to add integration');
+        toast.error(error.error || error.message || 'Failed to add integration');
       }
     } catch (error) {
       toast.error('Failed to add integration');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const initiateOAuthFlow = async (integrationId: string, type: IntegrationType) => {
+    try {
+      const response = await fetch(`/api/integrations/oauth?action=initiate&type=${type}&integrationId=${integrationId}`);
+      const result = await response.json();
+      
+      if (result.success && result.authUrl) {
+        toast.success('Redirecting to authorization page...');
+        // Redirect to OAuth provider
+        window.location.href = result.authUrl;
+      } else {
+        toast.error(result.error || 'Failed to initiate OAuth flow');
+        fetchIntegrations();
+      }
+    } catch (error) {
+      toast.error('Failed to start authorization');
+      fetchIntegrations();
+    }
+  };
+
+  const setupTelegramWebhook = async (integrationId: string) => {
+    try {
+      const response = await fetch('/api/integrations/jobs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          integrationId,
+          jobType: 'WEBHOOK_SETUP',
+          priority: 1
+        })
+      });
+
+      if (response.ok) {
+        toast.success('Telegram integration created! Webhook setup in progress...');
+        // Refresh integrations list
+        setTimeout(() => fetchIntegrations(), 2000);
+      } else {
+        toast.error('Integration created but webhook setup failed. Please try again.');
+        fetchIntegrations();
+      }
+    } catch (error) {
+      toast.error('Integration created but webhook setup failed');
+      fetchIntegrations();
+    }
+  };
+
+  const handleConfigureIntegration = async (integration: DocumentIntegration) => {
+    // For OAuth-based integrations, re-authorize
+    if (['GMAIL', 'GOOGLE_DRIVE', 'OUTLOOK', 'TEAMS', 'DROPBOX', 'SLACK'].includes(integration.type)) {
+      await initiateOAuthFlow(integration.id, integration.type);
+    } else {
+      toast.info('Configuration panel coming soon!');
     }
   };
 
@@ -340,7 +405,7 @@ export default function IntegrationsPage() {
                     <div>
                       <h3 className="font-semibold text-foreground">{integration.name}</h3>
                       <span className={`px-2 py-1 rounded-full text-xs ${getChannelColor(integration.type === 'GMAIL' ? 'EMAIL' : integration.type)}`}>
-                        {integration.type.replace('_', ' ')}
+                        {integration.type ? integration.type.replace('_', ' ') : 'Unknown'}
                       </span>
                     </div>
                   </div>
@@ -393,7 +458,7 @@ export default function IntegrationsPage() {
                     <div className="text-sm text-muted-foreground">
                       <div className="flex justify-between mb-1">
                         <span>Email Account:</span>
-                        <span className="font-mono text-xs">{integration.settings.email}</span>
+                        <span className="font-mono text-xs">{integration.settings?.email || 'Not configured'}</span>
                       </div>
                       <div className="flex justify-between mb-1">
                         <span>Auto-Import:</span>
@@ -401,7 +466,7 @@ export default function IntegrationsPage() {
                       </div>
                       <div className="flex justify-between">
                         <span>Folders Monitored:</span>
-                        <span className="text-xs">{integration.settings.folders?.join(', ') || 'Inbox'}</span>
+                        <span className="text-xs">{integration.settings?.folders?.join(', ') || 'Inbox'}</span>
                       </div>
                     </div>
                   )}
@@ -410,7 +475,7 @@ export default function IntegrationsPage() {
                     <div className="text-sm text-muted-foreground">
                       <div className="flex justify-between mb-1">
                         <span>Business Phone:</span>
-                        <span className="font-mono text-xs">{integration.settings.phone_number}</span>
+                        <span className="font-mono text-xs">{integration.settings?.phone_number || 'Not configured'}</span>
                       </div>
                       <div className="flex justify-between mb-1">
                         <span>Document Types:</span>
@@ -427,11 +492,11 @@ export default function IntegrationsPage() {
                     <div className="text-sm text-muted-foreground">
                       <div className="flex justify-between mb-1">
                         <span>Workspace:</span>
-                        <span className="text-xs">{integration.settings.workspace_name || 'Connected'}</span>
+                        <span className="text-xs">{integration.settings?.workspace_name || 'Connected'}</span>
                       </div>
                       <div className="flex justify-between mb-1">
                         <span>Channels Monitored:</span>
-                        <span className="text-xs">{integration.settings.channels?.join(', ') || '#general'}</span>
+                        <span className="text-xs">{integration.settings?.channels?.join(', ') || '#general'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>File Types:</span>
@@ -444,7 +509,7 @@ export default function IntegrationsPage() {
                     <div className="text-sm text-muted-foreground">
                       <div className="flex justify-between mb-1">
                         <span>Sync Folder:</span>
-                        <span className="font-mono text-xs">{integration.settings.folder_path}</span>
+                        <span className="font-mono text-xs">{integration.settings?.folder_path || 'Not configured'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Auto-Sync:</span>
@@ -457,7 +522,7 @@ export default function IntegrationsPage() {
                     <div className="text-sm text-muted-foreground">
                       <div className="flex justify-between mb-1">
                         <span>Monitored Drives:</span>
-                        <span className="text-xs">{integration.settings.shared_drives?.join(', ') || 'My Drive'}</span>
+                        <span className="text-xs">{integration.settings?.shared_drives?.join(', ') || 'My Drive'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Real-time Sync:</span>
@@ -470,11 +535,11 @@ export default function IntegrationsPage() {
                     <div className="text-sm text-muted-foreground">
                       <div className="flex justify-between mb-1">
                         <span>Bot Token:</span>
-                        <span className="font-mono text-xs">{integration.settings.bot_token ? '••••••••' : 'Not configured'}</span>
+                        <span className="font-mono text-xs">{integration.settings?.bot_token ? '••••••••' : 'Not configured'}</span>
                       </div>
                       <div className="flex justify-between mb-1">
                         <span>Channel/Group:</span>
-                        <span className="text-xs">{integration.settings.chat_id || '@your_channel'}</span>
+                        <span className="text-xs">{integration.settings?.chat_id || '@your_channel'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Auto-Download:</span>
@@ -487,7 +552,7 @@ export default function IntegrationsPage() {
                     <div className="text-sm text-muted-foreground">
                       <div className="flex justify-between mb-1">
                         <span>Teams:</span>
-                        <span className="text-xs">{integration.settings.teams?.join(', ') || 'All teams'}</span>
+                        <span className="text-xs">{integration.settings?.teams?.join(', ') || 'All teams'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Document Library:</span>
@@ -495,10 +560,30 @@ export default function IntegrationsPage() {
                       </div>
                     </div>
                   )}
+
+                  {integration.type === 'OUTLOOK' && (
+                    <div className="text-sm text-muted-foreground">
+                      <div className="flex justify-between mb-1">
+                        <span>Email Account:</span>
+                        <span className="font-mono text-xs">{integration.settings?.email || 'Not configured'}</span>
+                      </div>
+                      <div className="flex justify-between mb-1">
+                        <span>Auto-Import:</span>
+                        <span className="text-xs">Email attachments</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Folders:</span>
+                        <span className="text-xs">{integration.settings?.folders?.join(', ') || 'Inbox'}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-4 flex justify-between items-center">
-                  <button className="text-sm text-primary hover:text-primary/80 flex items-center transition-colors">
+                  <button
+                    onClick={() => handleConfigureIntegration(integration)}
+                    className="text-sm text-primary hover:text-primary/80 flex items-center transition-colors"
+                  >
                     <CogIcon className="w-4 h-4 mr-1" />
                     Configure Ingestion
                   </button>
